@@ -57,6 +57,7 @@ class MakeAchievementCommand extends GeneratorCommand
         $goal = $this->askForGoal();
         $prerequisite = $this->askForPrerequisite();
         $description = $this->askForDescription($achievementName);
+        $isSecret = $this->askIfSecret();
 
         // Build the class content
         $stub = $this->buildClass($name);
@@ -70,6 +71,10 @@ class MakeAchievementCommand extends GeneratorCommand
 
         // Replace goal placeholder
         $stub = str_replace('return 1;', "return {$goal};", $stub);
+        
+        // Replace secret placeholder
+        $secretValue = $isSecret ? 'true' : 'false';
+        $stub = str_replace('return false;', "return {$secretValue};", $stub);
 
         // Replace prerequisite placeholder
         $prerequisiteValue = $prerequisite ? "'{$prerequisite}'" : 'null';
@@ -81,6 +86,7 @@ class MakeAchievementCommand extends GeneratorCommand
         $this->line("Achievement key: <info>{$key}</info>");
         $this->line("Achievement name: <info>{$achievementName}</info>");
         $this->line("Goal: <info>{$goal}</info>");
+        $this->line("Secret: <info>" . ($isSecret ? 'yes' : 'no') . "</info>");
         $this->line("Prerequisite: <info>" . ($prerequisite ?: 'none') . "</info>");
 
         return true;
@@ -246,5 +252,13 @@ class MakeAchievementCommand extends GeneratorCommand
         $description = $this->ask("Enter achievement description (default: {$defaultDescription})", $defaultDescription);
 
         return $description ?: $defaultDescription;
+    }
+
+    /**
+     * Ask user if this should be a secret achievement
+     */
+    protected function askIfSecret(): bool
+    {
+        return $this->confirm('Should this be a secret achievement? (hidden until unlocked)', false);
     }
 }

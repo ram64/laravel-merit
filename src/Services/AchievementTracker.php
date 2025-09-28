@@ -296,6 +296,46 @@ class AchievementTracker
     }
 
     /**
+     * Get all achievement classes visible to the achiever
+     * This excludes secret achievements that haven't been unlocked
+     */
+    public static function getVisibleAchievements($achiever): array
+    {
+        $allAchievements = static::getAllAchievements();
+        
+        return array_filter($allAchievements, function ($achievementClass) use ($achiever) {
+            return $achievementClass::isVisibleTo($achiever);
+        });
+    }
+
+    /**
+     * Get achievement data with appropriate display names/descriptions
+     */
+    public static function getAchievementDisplay($achiever, string $achievementKey): array
+    {
+        $achievementClass = static::getAchievement($achievementKey);
+        
+        if (!$achievementClass) {
+            return [];
+        }
+
+        return [
+            'key' => $achievementClass::key(),
+            'name' => $achievementClass::getDisplayName($achiever),
+            'description' => $achievementClass::getDisplayDescription($achiever),
+            'goal' => $achievementClass::goal(),
+            'progress' => $achievementClass::getProgress($achiever),
+            'progress_percentage' => $achievementClass::getProgressPercentage($achiever),
+            'is_completed' => $achievementClass::isCompleted($achiever),
+            'is_unlocked' => $achievementClass::isUnlocked($achiever),
+            'is_started' => $achievementClass::isStarted($achiever),
+            'is_secret' => $achievementClass::isSecret(),
+            'is_visible' => $achievementClass::isVisibleTo($achiever),
+            'category' => method_exists($achievementClass, 'category') ? $achievementClass::category() : 'general',
+        ];
+    }
+
+    /**
      * Reset discovery (useful for testing)
      */
     public static function resetDiscovery()

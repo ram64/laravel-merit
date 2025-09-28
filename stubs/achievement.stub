@@ -27,6 +27,11 @@ class DummyClass extends AchievementDefinition
         return 1;
     }
 
+    public static function isSecret(): bool
+    {
+        return false;
+    }
+
     public static function category(): string
     {
         return 'general';

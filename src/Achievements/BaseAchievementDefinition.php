@@ -32,6 +32,14 @@ abstract class BaseAchievementDefinition
     abstract public static function goal(): int;
 
     /**
+     * Whether this achievement is secret (hidden until unlocked)
+     */
+    public static function isSecret(): bool
+    {
+        return false;
+    }
+
+    /**
      * Check if the achiever qualifies for this achievement
      */
     abstract public static function qualifiesFor(Model $achiever): bool;
@@ -120,5 +128,42 @@ abstract class BaseAchievementDefinition
     public static function previous(): ?string
     {
         return null; // default: no dependency
+    }
+
+    /**
+     * Check if this achievement should be visible to the achiever
+     * Secret achievements are only visible once unlocked
+     */
+    public static function isVisibleTo(Model $achiever): bool
+    {
+        if (!static::isSecret()) {
+            return true;
+        }
+
+        return static::isUnlocked($achiever);
+    }
+
+    /**
+     * Get the display name, hiding it if secret and not unlocked
+     */
+    public static function getDisplayName(Model $achiever): string
+    {
+        if (static::isSecret() && !static::isUnlocked($achiever)) {
+            return 'Hidden Achievement';
+        }
+
+        return static::name();
+    }
+
+    /**
+     * Get the display description, hiding it if secret and not unlocked
+     */
+    public static function getDisplayDescription(Model $achiever): string
+    {
+        if (static::isSecret() && !static::isUnlocked($achiever)) {
+            return 'Complete certain actions to unlock this secret achievement.';
+        }
+
+        return static::description();
     }
 }
