@@ -1,12 +1,12 @@
 <?php
 
-namespace VendorName\Skeleton\Commands;
+namespace Ram64\LaravelMerit\Commands;
 
 use Illuminate\Console\Command;
 
-class SkeletonCommand extends Command
+class LaravelMeritCommand extends Command
 {
-    public $signature = 'skeleton';
+    public $signature = 'laravel-merit';
 
     public $description = 'My command';
 
