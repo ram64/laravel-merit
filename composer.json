@@ -1,6 +1,7 @@
 {
     "name": "ram64/laravel-merit",
     "description": "Achievements, XP tracking, and leveling.",
+    "version": "0.1.0",
     "keywords": [
         "ram64",
         "laravel",
