@@ -7,7 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use LaravelMerit\Services\AchievementTracker;
+use Ram64\LaravelMerit\Services\AchievementTracker;
 
 class ProcessAchievementCheck implements ShouldQueue
 {
