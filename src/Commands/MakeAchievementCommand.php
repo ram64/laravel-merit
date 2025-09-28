@@ -50,6 +50,14 @@ class MakeAchievementCommand extends GeneratorCommand
         // Make the directory
         $this->makeDirectory($path);
 
+        // Generate readable achievement name
+        $achievementName = $this->generateReadableName($className);
+
+        // Ask for additional information
+        $goal = $this->askForGoal();
+        $prerequisite = $this->askForPrerequisite();
+        $description = $this->askForDescription($achievementName);
+
         // Build the class content
         $stub = $this->buildClass($name);
 
@@ -57,15 +65,23 @@ class MakeAchievementCommand extends GeneratorCommand
         $stub = str_replace('DummyKey', $key, $stub);
 
         // Replace name and description placeholders
-        $achievementName = $this->generateReadableName($className);
         $stub = str_replace('DummyName', $achievementName, $stub);
-        $stub = str_replace('DummyDescription', "Achieve {$achievementName}", $stub);
+        $stub = str_replace('DummyDescription', $description, $stub);
+
+        // Replace goal placeholder
+        $stub = str_replace('return 1;', "return {$goal};", $stub);
+
+        // Replace prerequisite placeholder
+        $prerequisiteValue = $prerequisite ? "'{$prerequisite}'" : 'null';
+        $stub = str_replace('return null;', "return {$prerequisiteValue};", $stub);
 
         $this->files->put($path, $stub);
 
         $this->info($this->type . ' created successfully.');
         $this->line("Achievement key: <info>{$key}</info>");
         $this->line("Achievement name: <info>{$achievementName}</info>");
+        $this->line("Goal: <info>{$goal}</info>");
+        $this->line("Prerequisite: <info>" . ($prerequisite ?: 'none') . "</info>");
 
         return true;
     }
@@ -180,5 +196,55 @@ class MakeAchievementCommand extends GeneratorCommand
         $class = class_basename($name);
 
         return str_replace('DummyClass', $class, $stub);
+    }
+
+    /**
+     * Ask user for the achievement goal
+     */
+    protected function askForGoal(): int
+    {
+        $goal = $this->ask('What is the goal for this achievement? (default: 1)', '1');
+
+        if (!is_numeric($goal) || $goal < 1) {
+            $this->error('Goal must be a positive number. Using default value of 1.');
+            return 1;
+        }
+
+        return (int) $goal;
+    }
+
+    /**
+     * Ask user for prerequisite achievement
+     */
+    protected function askForPrerequisite(): ?string
+    {
+        $this->line('Available achievements:');
+        try {
+            $existingKeys = AchievementTracker::getAchievementKeys();
+            if (empty($existingKeys)) {
+                $this->line('  <comment>No existing achievements found</comment>');
+            } else {
+                foreach ($existingKeys as $key) {
+                    $this->line("  - {$key}");
+                }
+            }
+        } catch (\Exception $e) {
+            $this->line('  <comment>Could not load existing achievements</comment>');
+        }
+
+        $prerequisite = $this->ask('Enter prerequisite achievement key (optional, press enter to skip)');
+
+        return empty($prerequisite) ? null : $prerequisite;
+    }
+
+    /**
+     * Ask user for custom description
+     */
+    protected function askForDescription(string $defaultName): string
+    {
+        $defaultDescription = "Achieve {$defaultName}";
+        $description = $this->ask("Enter achievement description (default: {$defaultDescription})", $defaultDescription);
+
+        return $description ?: $defaultDescription;
     }
 }
