@@ -16,7 +16,7 @@ class AchievementProgressed implements ShouldQueue
 
     public $achiever;
 
-    public function __construct(AchieverAchievement $achievement, Model $achiever)
+    public function __construct(AchieverAchievement $achievement, Model $achiever, int $progress, int $goal)
     {
         $this->achievement = $achievement;
         $this->achiever = $achiever;

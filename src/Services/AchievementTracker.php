@@ -4,7 +4,7 @@ namespace Ram64\LaravelMerit\Services;
 
 use Ram64\LaravelMerit\Models\AchieverAchievement;
 use Ram64\LaravelMerit\Events\{AchievementStarted, AchievementProgressed, AchievementCompleted, AchievementUnlocked};
-use Ram64\LaravelMerit\Events\AchievementCompleted\Jobs\ProcessAchievementCheck;
+use Ram64\LaravelMerit\Jobs\ProcessAchievementCheck;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
@@ -76,7 +76,7 @@ class AchievementTracker
 
         // Fire started event if this is the first time
         if ($record->wasRecentlyCreated) {
-            event(new AchievementStarted($achiever, $achievementKey, $record));
+            event(new AchievementStarted($record, $achiever));
         }
 
         // Skip if already unlocked
@@ -90,20 +90,20 @@ class AchievementTracker
 
         // Fire progress event if progress changed
         if ($record->progress > $oldProgress) {
-            event(new AchievementProgressed($achiever, $achievementKey, $record->progress, $record->goal, $record));
+            event(new AchievementProgressed($record, $achiever, $record->progress, $record->goal));
         }
 
         // Mark as completed if not already
         if ($record->completed_at === null) {
             $record->completed_at = now();
-            event(new AchievementCompleted($achiever, $achievementKey, $record));
+            event(new AchievementCompleted($record, $achiever));
         }
 
         // Mark as unlocked
         $record->unlocked_at = now();
         $record->save();
 
-        event(new AchievementUnlocked($achiever, $achievementKey, $record));
+        event(new AchievementUnlocked($record, $achiever));
 
         return $record;
     }
@@ -139,7 +139,7 @@ class AchievementTracker
 
         // Fire started event if this is the first time
         if ($record->wasRecentlyCreated) {
-            event(new AchievementStarted($achiever, $achievementKey, $record));
+            event(new AchievementStarted($record, $achiever));
         }
 
         // Skip if already unlocked
@@ -152,18 +152,18 @@ class AchievementTracker
 
         // Fire progress event if progress changed
         if ($record->progress > $oldProgress) {
-            event(new AchievementProgressed($achiever, $achievementKey, $record->progress, $record->goal, $record));
+            event(new AchievementProgressed($record, $achiever, $record->progress, $record->goal));
         }
 
         // Check if completed
         $wasCompleted = $record->completed_at !== null;
         if ($record->progress >= $record->goal && !$wasCompleted) {
             $record->completed_at = now();
-            event(new AchievementCompleted($achiever, $achievementKey, $record));
+            event(new AchievementCompleted($record, $achiever));
 
             // Auto-unlock when completed
             $record->unlocked_at = now();
-            event(new AchievementUnlocked($achiever, $achievementKey, $record));
+            event(new AchievementUnlocked($record, $achiever));
         }
 
         $record->save();
