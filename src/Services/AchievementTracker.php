@@ -37,19 +37,58 @@ class AchievementTracker
 
         foreach ($achievements as $achievementClass) {
             // Skip if prerequisites not met
-            if (! $achievementClass::canStart($achiever)) {
+            if (!$achievementClass::canStart($achiever)) {
                 continue;
+            }
+
+            // Get current progress from achievement logic
+            $progress = method_exists($achievementClass, 'getProgress')
+                ? $achievementClass::getProgress($achiever)
+                : ($achievementClass::qualifiesFor($achiever) ? $achievementClass::goal() : 0);
+
+            $record = AchieverAchievement::firstOrCreate(
+                [
+                    'achiever_id' => $achiever->id,
+                    'achiever_type' => get_class($achiever),
+                    'achievement_key' => $achievementClass::key(),
+                ],
+                [
+                    'progress' => 0,
+                    'goal' => $achievementClass::goal(),
+                    'started_at' => now(),
+                ]
+            );
+
+            // Fire started event if this is the first time
+            if ($record->wasRecentlyCreated) {
+                event(new AchievementStarted($record, $achiever));
             }
 
             // Skip if already unlocked
-            if ($achievementClass::isUnlocked($achiever)) {
+            if ($record->unlocked_at !== null) {
                 continue;
             }
 
-            // Check if qualifies
-            if ($achievementClass::qualifiesFor($achiever)) {
-                static::award($achiever, $achievementClass::key());
+            $oldProgress = $record->progress;
+            $record->progress = min($progress, $record->goal);
+
+            // Fire progress event if progress changed
+            if ($record->progress > $oldProgress) {
+                event(new AchievementProgressed($record, $achiever, $record->progress, $record->goal));
             }
+
+            // Check if completed
+            $wasCompleted = $record->completed_at !== null;
+            if ($record->progress >= $record->goal && !$wasCompleted) {
+                $record->completed_at = now();
+                event(new AchievementCompleted($record, $achiever));
+
+                // Auto-unlock when completed
+                $record->unlocked_at = now();
+                event(new AchievementUnlocked($record, $achiever));
+            }
+
+            $record->save();
         }
     }
 
@@ -60,7 +99,7 @@ class AchievementTracker
     {
         $achievementClass = static::getAchievement($achievementKey);
 
-        if (! $achievementClass) {
+        if (!$achievementClass) {
             throw new \InvalidArgumentException("Achievement '{$achievementKey}' not found");
         }
 
@@ -118,12 +157,12 @@ class AchievementTracker
     {
         $achievementClass = static::getAchievement($achievementKey);
 
-        if (! $achievementClass) {
+        if (!$achievementClass) {
             throw new \InvalidArgumentException("Achievement '{$achievementKey}' not found");
         }
 
         // Check if prerequisites are met
-        if (! $achievementClass::canStart($achiever)) {
+        if (!$achievementClass::canStart($achiever)) {
             return;
         }
 
@@ -160,7 +199,7 @@ class AchievementTracker
 
         // Check if completed
         $wasCompleted = $record->completed_at !== null;
-        if ($record->progress >= $record->goal && ! $wasCompleted) {
+        if ($record->progress >= $record->goal && !$wasCompleted) {
             $record->completed_at = now();
             event(new AchievementCompleted($record, $achiever));
 
@@ -223,7 +262,7 @@ class AchievementTracker
 
         $achievementPath = config('merit.achievements_path', app_path('Achievements'));
 
-        if (! File::exists($achievementPath)) {
+        if (!File::exists($achievementPath)) {
             static::$discovered = true;
 
             return;
@@ -238,7 +277,7 @@ class AchievementTracker
                 continue;
             }
 
-            $className = $achievementNamespace.str_replace(['/', '.php'], ['\\', ''], $file->getRelativePathname());
+            $className = $achievementNamespace . str_replace(['/', '.php'], ['\\', ''], $file->getRelativePathname());
 
             if (class_exists($className)) {
                 $reflection = new \ReflectionClass($className);
@@ -246,7 +285,7 @@ class AchievementTracker
                 // Skip abstract classes and classes that don't extend our base
                 if (
                     $reflection->isAbstract() ||
-                    ! $reflection->isSubclassOf(\Ram64\LaravelMerit\Achievements\BaseAchievementDefinition::class)
+                    !$reflection->isSubclassOf(\Ram64\LaravelMerit\Achievements\BaseAchievementDefinition::class)
                 ) {
                     continue;
                 }
