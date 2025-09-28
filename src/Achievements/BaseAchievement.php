@@ -2,6 +2,8 @@
 
 namespace Ram64\LaravelMerit\Achievements;
 
+use Illuminate\Database\Eloquent\Model;
+
 /**
  * Base class for all Achievements.
  * Implement the abstract methods to define specific achievements.
@@ -44,8 +46,8 @@ abstract class BaseAchievement
     /**
      * Determine if the achiever qualifies for this achievement.
      *
-     * @param  mixed  $achiever
+     * @param  \Illuminate\Database\Eloquent\Model  $achiever
      * @return void
      */
-    abstract public static function qualifies($achiever): bool;
+    abstract public static function qualifies(Model $achiever): bool;
 }

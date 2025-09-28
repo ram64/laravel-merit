@@ -3,7 +3,7 @@
 namespace Ram64\LaravelMerit\Concerns;
 
 use Illuminate\Support\Facades\Cache;
-use LaravelMerit\Models\AchieverAchievement;
+use Ram64\LaravelMerit\Models\AchieverAchievement;
 
 trait Achiever
 {
