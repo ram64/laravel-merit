@@ -177,7 +177,7 @@ class MakeAchievementCommand extends GeneratorCommand
      */
     protected function replaceClass($stub, $name)
     {
-        $class = str_replace($this->getNamespace($name) . '\\', '', $name);
+        $class = class_basename($name);
 
         return str_replace('DummyClass', $class, $stub);
     }
