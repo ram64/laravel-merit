@@ -24,5 +24,4 @@ return [
     'achievements_namespace' => 'App\\Achievements\\',
     'achievements_path' => app_path('Achievements'),
 
-
 ];

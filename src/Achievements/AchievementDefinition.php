@@ -30,7 +30,7 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
     {
         $prerequisite = static::prerequisite();
 
-        if (!$prerequisite) {
+        if (! $prerequisite) {
             return true;
         }
 
@@ -63,6 +63,7 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
     protected static function hasCountInRange(Model $achiever, string $relation, int $min, int $max): bool
     {
         $count = $achiever->$relation()->count();
+
         return $count >= $min && $count <= $max;
     }
 

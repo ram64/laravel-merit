@@ -10,7 +10,7 @@ use Ram64\LaravelMerit\Models\AchieverAchievement;
 
 class AchievementStarted implements ShouldQueue
 {
-    use SerializesModels, Dispatchable;
+    use Dispatchable, SerializesModels;
 
     public $achievement;
 

@@ -91,13 +91,13 @@ class AchieverAchievement extends Model
         }
         $this->save();
 
-        if (!$wasStarted && $this->progress > 0) {
+        if (! $wasStarted && $this->progress > 0) {
             $this->dispatchEvent(new \Ram64\LaravelMerit\Events\AchievementStarted($this, $achiever));
         } elseif ($this->progress > 0 && $this->progress < $this->goal) {
             $this->dispatchEvent(new \Ram64\LaravelMerit\Events\AchievementProgressed($this, $achiever, $amount));
         }
 
-        if ($this->progress === $this->goal && !$wasCompleted) {
+        if ($this->progress === $this->goal && ! $wasCompleted) {
             $this->dispatchEvent(new \Ram64\LaravelMerit\Events\AchievementCompleted($this, $achiever));
             $this->dispatchEvent(new \Ram64\LaravelMerit\Events\AchievementUnlocked($this, $achiever));
         }
