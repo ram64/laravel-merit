@@ -2,7 +2,6 @@
 
 namespace Ram64\LaravelMerit;
 
-use Ram64\LaravelMerit\Commands\LaravelMeritCommand;
 use Ram64\LaravelMerit\Commands\MakeAchievementCommand;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -22,7 +21,6 @@ class LaravelMeritServiceProvider extends PackageServiceProvider
             ->hasViews()
             ->hasMigration('create_achiever_achievements_table')
             ->hasCommands([
-                LaravelMeritCommand::class,
                 MakeAchievementCommand::class,
             ]);
     }
