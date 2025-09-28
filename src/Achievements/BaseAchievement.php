@@ -1,6 +1,6 @@
 <?php
 
-namespace LaravelMerit\Achievements;
+namespace Ram64\LaravelMerit\Achievements;
 
 /**
  * Base class for all Achievements.

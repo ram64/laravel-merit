@@ -1,6 +1,6 @@
 <?php
 
-namespace LaravelMerit\Models;
+namespace Ram64\LaravelMerit\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
