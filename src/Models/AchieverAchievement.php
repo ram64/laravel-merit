@@ -8,6 +8,10 @@ class AchieverAchievement extends Model
 {
     protected $table;
 
+    /**
+     * Fillable attributes for the model.
+     * @var array
+     */
     protected $fillable = [
         'achievement_key',
         'metadata',
@@ -17,6 +21,10 @@ class AchieverAchievement extends Model
         'unlocked_at',
     ];
 
+    /**
+     * Casts for the model attributes.
+     * @var array
+     */
     protected $casts = [
         'metadata' => 'array',
         'progress' => 'integer',
@@ -24,17 +32,30 @@ class AchieverAchievement extends Model
         'unlocked_at' => 'datetime',
     ];
 
+    /**
+     * Constructor to set the table name from config.
+     * @param array $attributes
+     */
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
         $this->table = config('merit.achievements_table', 'achiever_achievements');
     }
 
+    /**
+     * Get the Achiever for this Achievement.
+     * @return \Illuminate\Database\Eloquent\Relations\MorphTo<Model, AchieverAchievement>
+     */
     public function achiever()
     {
         return $this->morphTo();
     }
 
+    /**
+     * Dispatch an event, either queued or synchronously.
+     * @param mixed $event
+     * @return void
+     */
     protected function dispatchEvent($event)
     {
         if (config('merit.queue_events', false)) {
@@ -44,7 +65,13 @@ class AchieverAchievement extends Model
         }
     }
 
-    public function incrementProgress(int $amount = 1, $achiever = null)
+    /**
+     * Increment progress towards the achievement goal.
+     * @param int $amount
+     * @param mixed $achiever
+     * @return void
+     */
+    public function incrementProgress(int $amount = 1, Model $achiever = null)
     {
         $wasStarted = $this->progress > 0;
         $wasCompleted = $this->status === 'unlocked';
@@ -57,13 +84,13 @@ class AchieverAchievement extends Model
         }
         $this->save();
 
-        if (! $wasStarted && $this->progress > 0) {
+        if (!$wasStarted && $this->progress > 0) {
             $this->dispatchEvent(new \LaravelMerit\Events\AchievementStarted($this, $achiever));
         } elseif ($this->progress > 0 && $this->progress < $this->goal) {
             $this->dispatchEvent(new \LaravelMerit\Events\AchievementProgressed($this, $achiever, $amount));
         }
 
-        if ($this->progress === $this->goal && ! $wasCompleted) {
+        if ($this->progress === $this->goal && !$wasCompleted) {
             $this->dispatchEvent(new \LaravelMerit\Events\AchievementCompleted($this, $achiever));
             $this->dispatchEvent(new \LaravelMerit\Events\AchievementUnlocked($this, $achiever));
         }
