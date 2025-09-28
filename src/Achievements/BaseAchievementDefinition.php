@@ -61,7 +61,7 @@ abstract class BaseAchievementDefinition
     {
         $record = static::getAchievementRecord($achiever);
 
-        return $record ? $record->is_unlocked : false;
+        return $record ? ($record->unlocked_at ?? false) : false;
     }
 
     /**
