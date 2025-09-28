@@ -10,7 +10,7 @@ class AchievementService
     {
         $classes = [];
         foreach (glob(__DIR__.'/../Achievements/*.php') as $file) {
-            $class = 'LaravelMerit\\Achievements\\'.pathinfo($file, PATHINFO_FILENAME);
+            $class = 'Ram64\\LaravelMerit\\Achievements\\'.pathinfo($file, PATHINFO_FILENAME);
             if (! class_exists($class)) {
                 continue;
             }

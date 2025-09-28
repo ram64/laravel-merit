@@ -14,12 +14,16 @@ class AchieverAchievement extends Model
      * @var array
      */
     protected $fillable = [
+        'achiever_id',
+        'achiever_type',
         'achievement_key',
-        'metadata',
         'progress',
         'goal',
-        'status',
+        'metadata',
+        'started_at',
+        'completed_at',
         'unlocked_at',
+
     ];
 
     /**
@@ -87,15 +91,15 @@ class AchieverAchievement extends Model
         }
         $this->save();
 
-        if (! $wasStarted && $this->progress > 0) {
-            $this->dispatchEvent(new \LaravelMerit\Events\AchievementStarted($this, $achiever));
+        if (!$wasStarted && $this->progress > 0) {
+            $this->dispatchEvent(new \Ram64\LaravelMerit\Events\AchievementStarted($this, $achiever));
         } elseif ($this->progress > 0 && $this->progress < $this->goal) {
-            $this->dispatchEvent(new \LaravelMerit\Events\AchievementProgressed($this, $achiever, $amount));
+            $this->dispatchEvent(new \Ram64\LaravelMerit\Events\AchievementProgressed($this, $achiever, $amount));
         }
 
-        if ($this->progress === $this->goal && ! $wasCompleted) {
-            $this->dispatchEvent(new \LaravelMerit\Events\AchievementCompleted($this, $achiever));
-            $this->dispatchEvent(new \LaravelMerit\Events\AchievementUnlocked($this, $achiever));
+        if ($this->progress === $this->goal && !$wasCompleted) {
+            $this->dispatchEvent(new \Ram64\LaravelMerit\Events\AchievementCompleted($this, $achiever));
+            $this->dispatchEvent(new \Ram64\LaravelMerit\Events\AchievementUnlocked($this, $achiever));
         }
     }
 }

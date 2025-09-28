@@ -27,13 +27,16 @@ return new class extends Migration
             // Optional metadata as JSON
             $table->json('metadata')->nullable();
 
-            // Timestamp when unlocked
+            $table->timestamp('started_at')->nullable();
+            $table->timestamp('completed_at')->nullable();
             $table->timestamp('unlocked_at')->nullable();
 
             $table->timestamps();
 
             // Ensure each achiever can only have one record per achievement
             $table->unique(['achiever_type', 'achiever_id', 'achievement_key'], 'achiever_achievement_unique');
+            $table->index(['achiever_id', 'achiever_type']);
+            $table->index('achievement_key')
         });
     }
 
