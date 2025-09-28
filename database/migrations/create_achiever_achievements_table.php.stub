@@ -36,7 +36,7 @@ return new class extends Migration
             // Ensure each achiever can only have one record per achievement
             $table->unique(['achiever_type', 'achiever_id', 'achievement_key'], 'achiever_achievement_unique');
             $table->index(['achiever_id', 'achiever_type']);
-            $table->index('achievement_key')
+            $table->index('achievement_key');
         });
     }
 
