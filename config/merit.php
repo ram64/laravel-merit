@@ -24,4 +24,13 @@ return [
     'achievements_namespace' => 'App\\Achievements\\',
     'achievements_path' => app_path('Achievements'),
 
+    /**
+     * Debug settings for achievement tracking
+     */
+    'debug' => [
+        'enabled' => env('MERIT_DEBUG', false),
+        'log_channel' => env('MERIT_DEBUG_CHANNEL', 'single'),
+        'log_level' => env('MERIT_DEBUG_LEVEL', 'debug'),
+    ],
+
 ];

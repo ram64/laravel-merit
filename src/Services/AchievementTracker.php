@@ -3,6 +3,7 @@
 namespace Ram64\LaravelMerit\Services;
 
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Ram64\LaravelMerit\Events\AchievementCompleted;
 use Ram64\LaravelMerit\Events\AchievementProgressed;
 use Ram64\LaravelMerit\Events\AchievementStarted;
@@ -21,8 +22,15 @@ class AchievementTracker
      */
     public static function check($achiever)
     {
+        static::debug('Starting achievement check', [
+            'achiever_id' => $achiever->id,
+            'achiever_type' => get_class($achiever),
+            'queue_enabled' => config('merit.queue_achievements', true)
+        ]);
+
         if (config('merit.queue_achievements', true)) {
             ProcessAchievementCheck::dispatch($achiever);
+            static::debug('Achievement check dispatched to queue');
         } else {
             static::processCheck($achiever);
         }
@@ -34,15 +42,35 @@ class AchievementTracker
     public static function processCheck($achiever)
     {
         $achievements = static::getAllAchievements();
+        
+        static::debug('Processing achievement check', [
+            'achiever_id' => $achiever->id,
+            'achiever_type' => get_class($achiever),
+            'total_achievements' => count($achievements)
+        ]);
 
         foreach ($achievements as $achievementClass) {
+            $achievementKey = $achievementClass::key();
+            
+            static::debug("Checking achievement: {$achievementKey}", [
+                'achievement_class' => $achievementClass,
+                'achiever_id' => $achiever->id
+            ]);
+
             // Skip if prerequisites not met
             if (!$achievementClass::canStart($achiever)) {
+                static::debug("Prerequisites not met for achievement: {$achievementKey}");
                 continue;
             }
 
             // Get current progress from achievement logic
             $currentProgress = $achievementClass::calculateCurrentProgress($achiever);
+            
+            static::debug("Current progress calculated", [
+                'achievement' => $achievementKey,
+                'progress' => $currentProgress,
+                'goal' => $achievementClass::goal()
+            ]);
 
             $record = AchieverAchievement::firstOrCreate(
                 [
@@ -59,11 +87,13 @@ class AchievementTracker
 
             // Fire started event if this is the first time
             if ($record->wasRecentlyCreated) {
+                static::debug("Achievement started: {$achievementKey}");
                 event(new AchievementStarted($record, $achiever));
             }
 
             // Skip if already unlocked
             if ($record->unlocked_at !== null) {
+                static::debug("Achievement already unlocked: {$achievementKey}");
                 continue;
             }
 
@@ -72,12 +102,19 @@ class AchievementTracker
 
             // Fire progress event if progress changed
             if ($record->progress > $oldProgress) {
+                static::debug("Achievement progress updated", [
+                    'achievement' => $achievementKey,
+                    'old_progress' => $oldProgress,
+                    'new_progress' => $record->progress,
+                    'goal' => $record->goal
+                ]);
                 event(new AchievementProgressed($record, $achiever, $record->progress, $record->goal));
             }
 
             // Check if completed
             $wasCompleted = $record->completed_at !== null;
             if ($record->progress >= $record->goal && !$wasCompleted) {
+                static::debug("Achievement completed and unlocked: {$achievementKey}");
                 $record->completed_at = now();
                 event(new AchievementCompleted($record, $achiever));
 
@@ -88,6 +125,8 @@ class AchievementTracker
 
             $record->save();
         }
+        
+        static::debug('Achievement check processing completed');
     }
 
     /**
@@ -95,9 +134,16 @@ class AchievementTracker
      */
     public static function award($achiever, string $achievementKey)
     {
+        static::debug("Manually awarding achievement", [
+            'achievement' => $achievementKey,
+            'achiever_id' => $achiever->id,
+            'achiever_type' => get_class($achiever)
+        ]);
+
         $achievementClass = static::getAchievement($achievementKey);
 
         if (!$achievementClass) {
+            static::debug("Achievement not found: {$achievementKey}");
             throw new \InvalidArgumentException("Achievement '{$achievementKey}' not found");
         }
 
@@ -153,14 +199,22 @@ class AchievementTracker
      */
     public static function increment($achiever, string $achievementKey, int $amount = 1)
     {
+        static::debug("Incrementing achievement progress", [
+            'achievement' => $achievementKey,
+            'achiever_id' => $achiever->id,
+            'amount' => $amount
+        ]);
+
         $achievementClass = static::getAchievement($achievementKey);
 
         if (!$achievementClass) {
+            static::debug("Achievement not found: {$achievementKey}");
             throw new \InvalidArgumentException("Achievement '{$achievementKey}' not found");
         }
 
         // Check if prerequisites are met
         if (!$achievementClass::canStart($achiever)) {
+            static::debug("Prerequisites not met for increment: {$achievementKey}");
             return;
         }
 
@@ -259,16 +313,21 @@ class AchievementTracker
         }
 
         $achievementPath = config('merit.achievements_path', app_path('Achievements'));
+        $achievementNamespace = config('merit.achievements_namespace', 'App\\Achievements\\');
+
+        static::debug('Starting achievement discovery', [
+            'path' => $achievementPath,
+            'namespace' => $achievementNamespace
+        ]);
 
         if (!File::exists($achievementPath)) {
+            static::debug('Achievement path does not exist', ['path' => $achievementPath]);
             static::$discovered = true;
-
             return;
         }
 
-        $achievementNamespace = config('merit.achievements_namespace', 'App\\Achievements\\');
-
         $files = File::allFiles($achievementPath);
+        static::debug('Found files in achievement directory', ['count' => count($files)]);
 
         foreach ($files as $file) {
             if ($file->getExtension() !== 'php') {
@@ -285,13 +344,18 @@ class AchievementTracker
                     $reflection->isAbstract() ||
                     !$reflection->isSubclassOf(\Ram64\LaravelMerit\Achievements\BaseAchievementDefinition::class)
                 ) {
+                    static::debug('Skipping class (abstract or invalid base)', ['class' => $className]);
                     continue;
                 }
 
+                static::debug('Registering achievement class', ['class' => $className]);
                 static::register($className);
+            } else {
+                static::debug('Class does not exist', ['class' => $className]);
             }
         }
 
+        static::debug('Achievement discovery completed', ['registered' => count(static::$achievements)]);
         static::$discovered = true;
     }
 
@@ -342,5 +406,20 @@ class AchievementTracker
     {
         static::$achievements = [];
         static::$discovered = false;
+    }
+
+    /**
+     * Log debug information if debug mode is enabled
+     */
+    protected static function debug(string $message, array $context = []): void
+    {
+        if (!config('merit.debug.enabled', false)) {
+            return;
+        }
+
+        $channel = config('merit.debug.log_channel', 'single');
+        $level = config('merit.debug.log_level', 'debug');
+
+        Log::channel($channel)->log($level, "[Merit] {$message}", $context);
     }
 }
