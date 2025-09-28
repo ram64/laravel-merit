@@ -33,7 +33,7 @@ class MakeAchievementCommand extends GeneratorCommand
 
         // Check if achievement already exists
         if ($this->files->exists($path)) {
-            $this->error($this->type.' already exists!');
+            $this->error($this->type . ' already exists!');
             return false;
         }
 
@@ -52,10 +52,10 @@ class MakeAchievementCommand extends GeneratorCommand
 
         // Build the class content
         $stub = $this->buildClass($name);
-        
+
         // Replace the key placeholder
         $stub = str_replace('DummyKey', $key, $stub);
-        
+
         // Replace name and description placeholders
         $achievementName = $this->generateReadableName($className);
         $stub = str_replace('DummyName', $achievementName, $stub);
@@ -63,10 +63,10 @@ class MakeAchievementCommand extends GeneratorCommand
 
         $this->files->put($path, $stub);
 
-        $this->info($this->type.' created successfully.');
+        $this->info($this->type . ' created successfully.');
         $this->line("Achievement key: <info>{$key}</info>");
         $this->line("Achievement name: <info>{$achievementName}</info>");
-        
+
         return true;
     }
 
@@ -75,7 +75,7 @@ class MakeAchievementCommand extends GeneratorCommand
      */
     protected function getStub()
     {
-        return __DIR__.'/../../stubs/achievement.stub';
+        return __DIR__ . '/../../stubs/achievement.stub';
     }
 
     /**
@@ -83,7 +83,7 @@ class MakeAchievementCommand extends GeneratorCommand
      */
     protected function getDefaultNamespace($rootNamespace)
     {
-        return config('merit.achievements_namespace', $rootNamespace.'\\Achievements');
+        return config('merit.achievements_namespace', $rootNamespace . '\\Achievements');
     }
 
     /**
@@ -91,11 +91,15 @@ class MakeAchievementCommand extends GeneratorCommand
      */
     protected function getPath($name)
     {
+        // Get the class name without the root namespace
         $name = Str::replaceFirst($this->rootNamespace(), '', $name);
-        
+
+        // Remove the leading "Achievements" part since our path already points to Achievements directory
+        $name = Str::replaceFirst('\\Achievements\\', '\\', $name);
+
         $achievementsPath = config('merit.achievements_path', app_path('Achievements'));
-        
-        return $achievementsPath.'/'.str_replace('\\', '/', $name).'.php';
+
+        return $achievementsPath . '/' . str_replace('\\', '/', ltrim($name, '\\')) . '.php';
     }
 
     /**
@@ -177,7 +181,7 @@ class MakeAchievementCommand extends GeneratorCommand
      */
     protected function replaceClass($stub, $name)
     {
-        $class = str_replace($this->getNamespace($name).'\\', '', $name);
+        $class = str_replace($this->getNamespace($name) . '\\', '', $name);
 
         return str_replace('DummyClass', $class, $stub);
     }
