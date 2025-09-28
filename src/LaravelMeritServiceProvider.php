@@ -19,7 +19,7 @@ class LaravelMeritServiceProvider extends PackageServiceProvider
             ->name('laravel-merit')
             ->hasConfigFile()
             ->hasViews()
-            ->hasMigration('create_laravel_merit_table')
+            ->hasMigration('create_achiever_achievements_table')
             ->hasCommand(LaravelMeritCommand::class);
     }
 }
