@@ -46,7 +46,6 @@ abstract class BaseAchievement
     /**
      * Determine if the achiever qualifies for this achievement.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $achiever
      * @return void
      */
     abstract public static function qualifies(Model $achiever): bool;
