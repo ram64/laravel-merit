@@ -42,7 +42,7 @@ class AchievementTracker
     public static function processCheck($achiever)
     {
         $achievements = static::getAllAchievements();
-        
+
         static::debug('Processing achievement check', [
             'achiever_id' => $achiever->id,
             'achiever_type' => get_class($achiever),
@@ -51,7 +51,7 @@ class AchievementTracker
 
         foreach ($achievements as $achievementClass) {
             $achievementKey = $achievementClass::key();
-            
+
             static::debug("Checking achievement: {$achievementKey}", [
                 'achievement_class' => $achievementClass,
                 'achiever_id' => $achiever->id
@@ -65,7 +65,7 @@ class AchievementTracker
 
             // Get current progress from achievement logic
             $currentProgress = $achievementClass::calculateCurrentProgress($achiever);
-            
+
             static::debug("Current progress calculated", [
                 'achievement' => $achievementKey,
                 'progress' => $currentProgress,
@@ -125,7 +125,7 @@ class AchievementTracker
 
             $record->save();
         }
-        
+
         static::debug('Achievement check processing completed');
     }
 
@@ -366,7 +366,7 @@ class AchievementTracker
     public static function getVisibleAchievements($achiever): array
     {
         $allAchievements = static::getAllAchievements();
-        
+
         return array_filter($allAchievements, function ($achievementClass) use ($achiever) {
             return $achievementClass::isVisibleTo($achiever);
         });
@@ -378,7 +378,7 @@ class AchievementTracker
     public static function getAchievementDisplay($achiever, string $achievementKey): array
     {
         $achievementClass = static::getAchievement($achievementKey);
-        
+
         if (!$achievementClass) {
             return [];
         }
