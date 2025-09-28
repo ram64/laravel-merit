@@ -2,15 +2,18 @@
 
 namespace Ram64\LaravelMerit\Services;
 
-use Ram64\LaravelMerit\Models\AchieverAchievement;
-use Ram64\LaravelMerit\Events\{AchievementStarted, AchievementProgressed, AchievementCompleted, AchievementUnlocked};
-use Ram64\LaravelMerit\Jobs\ProcessAchievementCheck;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Str;
+use Ram64\LaravelMerit\Events\AchievementCompleted;
+use Ram64\LaravelMerit\Events\AchievementProgressed;
+use Ram64\LaravelMerit\Events\AchievementStarted;
+use Ram64\LaravelMerit\Events\AchievementUnlocked;
+use Ram64\LaravelMerit\Jobs\ProcessAchievementCheck;
+use Ram64\LaravelMerit\Models\AchieverAchievement;
 
 class AchievementTracker
 {
     protected static $achievements = [];
+
     protected static $discovered = false;
 
     /**
@@ -34,7 +37,7 @@ class AchievementTracker
 
         foreach ($achievements as $achievementClass) {
             // Skip if prerequisites not met
-            if (!$achievementClass::canStart($achiever)) {
+            if (! $achievementClass::canStart($achiever)) {
                 continue;
             }
 
@@ -57,7 +60,7 @@ class AchievementTracker
     {
         $achievementClass = static::getAchievement($achievementKey);
 
-        if (!$achievementClass) {
+        if (! $achievementClass) {
             throw new \InvalidArgumentException("Achievement '{$achievementKey}' not found");
         }
 
@@ -115,12 +118,12 @@ class AchievementTracker
     {
         $achievementClass = static::getAchievement($achievementKey);
 
-        if (!$achievementClass) {
+        if (! $achievementClass) {
             throw new \InvalidArgumentException("Achievement '{$achievementKey}' not found");
         }
 
         // Check if prerequisites are met
-        if (!$achievementClass::canStart($achiever)) {
+        if (! $achievementClass::canStart($achiever)) {
             return;
         }
 
@@ -157,7 +160,7 @@ class AchievementTracker
 
         // Check if completed
         $wasCompleted = $record->completed_at !== null;
-        if ($record->progress >= $record->goal && !$wasCompleted) {
+        if ($record->progress >= $record->goal && ! $wasCompleted) {
             $record->completed_at = now();
             event(new AchievementCompleted($record, $achiever));
 
@@ -167,6 +170,7 @@ class AchievementTracker
         }
 
         $record->save();
+
         return $record;
     }
 
@@ -184,6 +188,7 @@ class AchievementTracker
     public static function getAchievement(string $key): ?string
     {
         static::discoverAchievements();
+
         return static::$achievements[$key] ?? null;
     }
 
@@ -193,6 +198,7 @@ class AchievementTracker
     public static function getAllAchievements(): array
     {
         static::discoverAchievements();
+
         return array_values(static::$achievements);
     }
 
@@ -202,6 +208,7 @@ class AchievementTracker
     public static function getAchievementKeys(): array
     {
         static::discoverAchievements();
+
         return array_keys(static::$achievements);
     }
 
@@ -216,8 +223,9 @@ class AchievementTracker
 
         $achievementPath = config('merit.achievements_path', app_path('Achievements'));
 
-        if (!File::exists($achievementPath)) {
+        if (! File::exists($achievementPath)) {
             static::$discovered = true;
+
             return;
         }
 
@@ -230,7 +238,7 @@ class AchievementTracker
                 continue;
             }
 
-            $className = $achievementNamespace . str_replace(['/', '.php'], ['\\', ''], $file->getRelativePathname());
+            $className = $achievementNamespace.str_replace(['/', '.php'], ['\\', ''], $file->getRelativePathname());
 
             if (class_exists($className)) {
                 $reflection = new \ReflectionClass($className);
@@ -238,7 +246,7 @@ class AchievementTracker
                 // Skip abstract classes and classes that don't extend our base
                 if (
                     $reflection->isAbstract() ||
-                    !$reflection->isSubclassOf(\Ram64\LaravelMerit\Achievements\BaseAchievementDefinition::class)
+                    ! $reflection->isSubclassOf(\Ram64\LaravelMerit\Achievements\BaseAchievementDefinition::class)
                 ) {
                     continue;
                 }

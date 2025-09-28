@@ -11,7 +11,6 @@ use Ram64\LaravelMerit\Models\AchieverAchievement;
  */
 abstract class BaseAchievementDefinition
 {
-
     /**
      * Unique identifier for the achievement
      */
@@ -43,6 +42,7 @@ abstract class BaseAchievementDefinition
     public static function getProgress(Model $achiever): int
     {
         $record = static::getAchievementRecord($achiever);
+
         return $record ? $record->progress : 0;
     }
 
@@ -60,6 +60,7 @@ abstract class BaseAchievementDefinition
     public static function isUnlocked(Model $achiever): bool
     {
         $record = static::getAchievementRecord($achiever);
+
         return $record ? $record->is_unlocked : false;
     }
 
