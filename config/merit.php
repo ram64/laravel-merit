@@ -14,7 +14,7 @@ return [
     /**
      * Cache TTL in minutes for achievements.
      */
-    'cache_ttl' => 10,
+    'cache_ttl' => env('MERIT_CACHE_TTL', 10),
     /**
      * Whether to queue events or dispatch them synchronously.
      */

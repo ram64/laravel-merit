@@ -3,6 +3,7 @@
 namespace Ram64\LaravelMerit\Achievements;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 use Ram64\LaravelMerit\Models\AchieverAchievement;
 
 /**
@@ -95,10 +96,14 @@ abstract class BaseAchievementDefinition
      */
     public static function getAchievementRecord(Model $achiever): ?AchieverAchievement
     {
-        return AchieverAchievement::where('achiever_id', $achiever->id)
-            ->where('achiever_type', get_class($achiever))
-            ->where('achievement_key', static::key())
-            ->first();
+        $cacheKey = 'merit:record:' . get_class($achiever) . ':' . $achiever->id . ':' . static::key();
+
+        return Cache::remember($cacheKey, config('merit.cache_ttl', 10) * 60, function () use ($achiever) {
+            return AchieverAchievement::where('achiever_id', $achiever->id)
+                ->where('achiever_type', get_class($achiever))
+                ->where('achievement_key', static::key())
+                ->first();
+        });
     }
 
     /**

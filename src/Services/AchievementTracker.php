@@ -4,6 +4,7 @@ namespace Ram64\LaravelMerit\Services;
 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use Ram64\LaravelMerit\Events\AchievementCompleted;
 use Ram64\LaravelMerit\Events\AchievementProgressed;
 use Ram64\LaravelMerit\Events\AchievementStarted;
@@ -109,6 +110,9 @@ class AchievementTracker
                     'goal' => $record->goal
                 ]);
                 event(new AchievementProgressed($record, $achiever, $record->progress, $record->goal));
+
+                // Clear display cache when progress changes
+                Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
             }
 
             // Check if completed
@@ -121,6 +125,9 @@ class AchievementTracker
                 // Auto-unlock when completed
                 $record->unlocked_at = now();
                 event(new AchievementUnlocked($record, $achiever));
+
+                // Clear display cache when unlocked
+                Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
             }
 
             $record->save();
@@ -190,6 +197,9 @@ class AchievementTracker
         $record->save();
 
         event(new AchievementUnlocked($record, $achiever));
+
+        // Clear cache when manually awarded
+        Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
 
         return $record;
     }
@@ -262,6 +272,11 @@ class AchievementTracker
 
         $record->save();
 
+        // Clear cache when progress is incremented
+        if ($record->progress > $oldProgress) {
+            Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
+        }
+
         return $record;
     }
 
@@ -312,6 +327,16 @@ class AchievementTracker
             return;
         }
 
+        $cacheKey = static::getDiscoveryCacheKey();
+        $cachedAchievements = Cache::get($cacheKey);
+
+        if ($cachedAchievements !== null) {
+            static::$achievements = $cachedAchievements;
+            static::$discovered = true;
+            static::debug('Loaded achievements from cache', ['count' => count($cachedAchievements)]);
+            return;
+        }
+
         $achievementPath = config('merit.achievements_path', app_path('Achievements'));
         $achievementNamespace = config('merit.achievements_namespace', 'App\\Achievements\\');
 
@@ -355,7 +380,13 @@ class AchievementTracker
             }
         }
 
-        static::debug('Achievement discovery completed', ['registered' => count(static::$achievements)]);
+        // Cache the discovered achievements
+        Cache::put($cacheKey, static::$achievements, static::getCacheTtl());
+
+        static::debug('Achievement discovery completed and cached', [
+            'registered' => count(static::$achievements),
+            'cache_ttl_seconds' => static::getCacheTtl()
+        ]);
         static::$discovered = true;
     }
 
@@ -377,13 +408,24 @@ class AchievementTracker
      */
     public static function getAchievementDisplay($achiever, string $achievementKey): array
     {
+        $cacheKey = static::getDisplayCacheKey($achiever, $achievementKey);
+        $cached = Cache::get($cacheKey);
+
+        if ($cached !== null) {
+            static::debug('Retrieved achievement display from cache', [
+                'achievement' => $achievementKey,
+                'achiever_id' => $achiever->id
+            ]);
+            return $cached;
+        }
+
         $achievementClass = static::getAchievement($achievementKey);
 
         if (!$achievementClass) {
             return [];
         }
 
-        return [
+        $displayData = [
             'key' => $achievementClass::key(),
             'name' => $achievementClass::getDisplayName($achiever),
             'description' => $achievementClass::getDisplayDescription($achiever),
@@ -397,11 +439,21 @@ class AchievementTracker
             'is_visible' => $achievementClass::isVisibleTo($achiever),
             'category' => method_exists($achievementClass, 'category') ? $achievementClass::category() : 'general',
         ];
-    }
 
-    /**
-     * Reset discovery (useful for testing)
-     */
+        // Cache for shorter duration if not unlocked (progress may change)
+        $cacheDuration = $displayData['is_unlocked'] ? static::getCacheTtl() : static::getCacheTtl() / 2;
+        Cache::put($cacheKey, $displayData, $cacheDuration);
+
+        static::debug('Cached achievement display data', [
+            'achievement' => $achievementKey,
+            'achiever_id' => $achiever->id,
+            'cache_duration' => $cacheDuration
+        ]);
+
+        return $displayData;
+    }    /**
+         * Reset discovery (useful for testing)
+         */
     public static function resetDiscovery()
     {
         static::$achievements = [];
@@ -421,5 +473,73 @@ class AchievementTracker
         $level = config('merit.debug.log_level', 'debug');
 
         Log::channel($channel)->log($level, "[Merit] {$message}", $context);
+    }
+
+    /**
+     * Get cache TTL in seconds
+     */
+    protected static function getCacheTtl(): int
+    {
+        return config('merit.cache_ttl', 10) * 60; // Convert minutes to seconds
+    }
+
+    /**
+     * Generate cache key for achievements discovery
+     */
+    protected static function getDiscoveryCacheKey(): string
+    {
+        $path = config('merit.achievements_path', app_path('Achievements'));
+        $namespace = config('merit.achievements_namespace', 'App\\Achievements\\');
+
+        return 'merit:achievements:discovery:' . md5($path . $namespace);
+    }
+
+    /**
+     * Generate cache key for user achievements
+     */
+    protected static function getUserCacheKey($achiever): string
+    {
+        return 'merit:user:' . get_class($achiever) . ':' . $achiever->id;
+    }
+
+    /**
+     * Generate cache key for achievement display
+     */
+    protected static function getDisplayCacheKey($achiever, string $achievementKey): string
+    {
+        return 'merit:display:' . get_class($achiever) . ':' . $achiever->id . ':' . $achievementKey;
+    }
+
+    /**
+     * Clear all caches related to an achiever
+     */
+    public static function clearUserCache($achiever): void
+    {
+        $userCacheKey = static::getUserCacheKey($achiever);
+        Cache::forget($userCacheKey);
+
+        // Clear display caches for all achievements
+        $achievements = static::getAllAchievements();
+        foreach ($achievements as $achievementClass) {
+            $displayKey = static::getDisplayCacheKey($achiever, $achievementClass::key());
+            Cache::forget($displayKey);
+        }
+
+        static::debug('Cleared user achievement caches', [
+            'achiever_id' => $achiever->id,
+            'achiever_type' => get_class($achiever)
+        ]);
+    }
+
+    /**
+     * Clear discovery cache
+     */
+    public static function clearDiscoveryCache(): void
+    {
+        Cache::forget(static::getDiscoveryCacheKey());
+        static::$discovered = false;
+        static::$achievements = [];
+
+        static::debug('Cleared achievement discovery cache');
     }
 }
