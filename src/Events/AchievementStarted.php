@@ -3,8 +3,9 @@
 namespace Ram64\LaravelMerit\Events;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Queue\SerializesModels;
-use LaravelMerit\Models\AchieverAchievement;
+use Ram64\LaravelMerit\Models\AchieverAchievement;
 
 class AchievementStarted implements ShouldQueue
 {
@@ -14,7 +15,7 @@ class AchievementStarted implements ShouldQueue
 
     public $achiever;
 
-    public function __construct(AchieverAchievement $achievement, $achiever)
+    public function __construct(AchieverAchievement $achievement, Model $achiever)
     {
         $this->achievement = $achievement;
         $this->achiever = $achiever;
