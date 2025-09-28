@@ -91,15 +91,11 @@ class MakeAchievementCommand extends GeneratorCommand
      */
     protected function getPath($name)
     {
-        // Get the class name without the root namespace
-        $name = Str::replaceFirst($this->rootNamespace(), '', $name);
-
-        // Remove the leading "Achievements" part since our path already points to Achievements directory
-        $name = Str::replaceFirst('\\Achievements\\', '\\', $name);
-
+        // Just get the class basename and put it directly in achievements directory
+        $className = class_basename($name);
         $achievementsPath = config('merit.achievements_path', app_path('Achievements'));
 
-        return $achievementsPath . '/' . str_replace('\\', '/', ltrim($name, '\\')) . '.php';
+        return $achievementsPath . '/' . $className . '.php';
     }
 
     /**
