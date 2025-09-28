@@ -2,9 +2,9 @@
 
 namespace Ram64\LaravelMerit;
 
+use Ram64\LaravelMerit\Commands\LaravelMeritCommand;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
-use Ram64\LaravelMerit\Commands\LaravelMeritCommand;
 
 class LaravelMeritServiceProvider extends PackageServiceProvider
 {
