@@ -1,0 +1,58 @@
+<?php
+
+namespace DummyNamespace;
+
+use Ram64\LaravelMerit\Achievements\AchievementDefinition;
+use Illuminate\Database\Eloquent\Model;
+
+class DummyClass extends AchievementDefinition
+{
+    public static function key(): string
+    {
+        return 'DummyKey';
+    }
+
+    public static function name(): string
+    {
+        return 'DummyName';
+    }
+
+    public static function description(): string
+    {
+        return 'DummyDescription';
+    }
+
+    public static function goal(): int
+    {
+        return 1;
+    }
+
+    public static function category(): string
+    {
+        return 'general';
+    }
+
+    public static function qualifiesFor(Model $achiever): bool
+    {
+        // TODO: Implement your achievement logic here
+        // This method should return true when the achiever has completed this achievement
+        // Example: return $achiever->posts()->count() >= static::goal();
+        // Example: return static::hasMinimumCount($achiever, 'posts', static::goal());
+        return false;
+    }
+
+    public static function calculateCurrentProgress(Model $achiever): int
+    {
+        // TODO: Calculate current progress towards the goal
+        // This should return the current count/progress (0 to goal)
+        // Example: return min($achiever->posts()->count(), static::goal());
+        // Example: return min(static::getCount($achiever, 'posts'), static::goal());
+        return static::qualifiesFor($achiever) ? static::goal() : 0;
+    }
+
+    public static function prerequisite(): ?string
+    {
+        // TODO: Return the key of a required achievement, or null if none
+        return null;
+    }
+}
