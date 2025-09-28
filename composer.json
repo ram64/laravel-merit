@@ -1,6 +1,6 @@
 {
     "name": "ram64/laravel-merit",
-    "description": "Laravel Merit brings gamification to your Laravel apps with clean, code-first achievements, XP tracking, and leveling. Define achievements in config, track progress with traits, and reward your users with milestones and badges.",
+    "description": "Achievements, XP tracking, and leveling.",
     "keywords": [
         "ram64",
         "laravel",
@@ -16,7 +16,7 @@
         }
     ],
     "require": {
-        "php": "^8.4",
+        "php": "^8.2",
         "spatie/laravel-package-tools": "^1.16",
         "illuminate/contracts": "^11.0||^12.0"
     },
