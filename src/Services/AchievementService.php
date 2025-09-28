@@ -1,6 +1,6 @@
 <?php
 
-namespace LaravelMerit\Services;
+namespace Ram64\LaravelMerit\Services;
 
 use ReflectionClass;
 

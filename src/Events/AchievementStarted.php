@@ -1,6 +1,6 @@
 <?php
 
-namespace LaravelMerit\Events;
+namespace Ram64\LaravelMerit\Events;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\SerializesModels;

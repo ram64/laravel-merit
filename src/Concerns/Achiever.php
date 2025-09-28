@@ -1,6 +1,6 @@
 <?php
 
-namespace LaravelMerit\Concerns;
+namespace Ram64\LaravelMerit\Concerns;
 
 use Illuminate\Support\Facades\Cache;
 use LaravelMerit\Models\AchieverAchievement;
