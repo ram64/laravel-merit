@@ -42,9 +42,7 @@ class AchievementTracker
             }
 
             // Get current progress from achievement logic
-            $progress = method_exists($achievementClass, 'getProgress')
-                ? $achievementClass::getProgress($achiever)
-                : ($achievementClass::qualifiesFor($achiever) ? $achievementClass::goal() : 0);
+            $currentProgress = $achievementClass::calculateCurrentProgress($achiever);
 
             $record = AchieverAchievement::firstOrCreate(
                 [
@@ -53,7 +51,7 @@ class AchievementTracker
                     'achievement_key' => $achievementClass::key(),
                 ],
                 [
-                    'progress' => 0,
+                    'progress' => 1,
                     'goal' => $achievementClass::goal(),
                     'started_at' => now(),
                 ]
@@ -70,7 +68,7 @@ class AchievementTracker
             }
 
             $oldProgress = $record->progress;
-            $record->progress = min($progress, $record->goal);
+            $record->progress = min($currentProgress, $record->goal);
 
             // Fire progress event if progress changed
             if ($record->progress > $oldProgress) {

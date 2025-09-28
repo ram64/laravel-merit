@@ -30,7 +30,7 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
     {
         $prerequisite = static::prerequisite();
 
-        if (! $prerequisite) {
+        if (!$prerequisite) {
             return true;
         }
 
@@ -39,6 +39,14 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
             ->where('achievement_key', $prerequisite)
             ->whereNotNull('unlocked_at')
             ->exists();
+    }
+
+    /**
+     * Helper: Get count for a relationship
+     */
+    protected static function getCount(Model $achiever, string $relation): int
+    {
+        return $achiever->$relation()->count();
     }
 
     /**

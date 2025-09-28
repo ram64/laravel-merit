@@ -37,6 +37,16 @@ abstract class BaseAchievementDefinition
     abstract public static function qualifiesFor(Model $achiever): bool;
 
     /**
+     * Calculate current progress based on achiever's actual data
+     * This should return the current count/progress towards the goal
+     */
+    public static function calculateCurrentProgress(Model $achiever): int
+    {
+        // Default implementation: if qualifies, return goal, otherwise 0
+        return static::qualifiesFor($achiever) ? static::goal() : 0;
+    }
+
+    /**
      * Get current progress for this achievement
      */
     public static function getProgress(Model $achiever): int
