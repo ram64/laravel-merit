@@ -109,7 +109,7 @@ class AchievementTracker
                     'new_progress' => $record->progress,
                     'goal' => $record->goal
                 ]);
-                event(new AchievementProgressed($record, $achiever, $record->progress, $record->goal));
+                event(new AchievementProgressed($record, $achiever, $record->progress));
 
                 // Clear display cache when progress changes
                 Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
@@ -183,7 +183,7 @@ class AchievementTracker
 
         // Fire progress event if progress changed
         if ($record->progress > $oldProgress) {
-            event(new AchievementProgressed($record, $achiever, $record->progress, $record->goal));
+            event(new AchievementProgressed($record, $achiever, $record->progress));
         }
 
         // Mark as completed if not already
@@ -256,7 +256,7 @@ class AchievementTracker
 
         // Fire progress event if progress changed
         if ($record->progress > $oldProgress) {
-            event(new AchievementProgressed($record, $achiever, $record->progress, $record->goal));
+            event(new AchievementProgressed($record, $achiever, $record->progress));
         }
 
         // Check if completed
@@ -367,7 +367,7 @@ class AchievementTracker
                 // Skip abstract classes and classes that don't extend our base
                 if (
                     $reflection->isAbstract() ||
-                    !$reflection->isSubclassOf(\Ram64\LaravelMerit\Achievements\BaseAchievementDefinition::class)
+                    !$reflection->isSubclassOf(\Ram64\LaravelMerit\Definitions\Achievements\BaseAchievementDefinition::class)
                 ) {
                     static::debug('Skipping class (abstract or invalid base)', ['class' => $className]);
                     continue;

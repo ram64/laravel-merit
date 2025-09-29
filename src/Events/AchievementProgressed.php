@@ -15,10 +15,12 @@ class AchievementProgressed implements ShouldQueue
     public $achievement;
 
     public $achiever;
+    public $progress;
 
-    public function __construct(AchieverAchievement $achievement, Model $achiever, int $progress, int $goal)
+    public function __construct(AchieverAchievement $achievement, Model $achiever, int $progress)
     {
         $this->achievement = $achievement;
         $this->achiever = $achiever;
+        $this->progress = $progress;
     }
 }
