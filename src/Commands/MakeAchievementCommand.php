@@ -71,13 +71,22 @@ class MakeAchievementCommand extends GeneratorCommand
 
         // Replace goal placeholder
         $stub = str_replace('return 1;', "return {$goal};", $stub);
-        
+
         // Replace secret placeholder
         $secretValue = $isSecret ? 'true' : 'false';
         $stub = str_replace('return false;', "return {$secretValue};", $stub);
 
         // Replace prerequisite placeholder
-        $prerequisiteValue = $prerequisite ? "'{$prerequisite}'" : 'null';
+        if ($prerequisite === null) {
+            $prerequisiteValue = 'null';
+        } elseif (is_string($prerequisite)) {
+            $prerequisiteValue = "'{$prerequisite}'";
+        } elseif (is_array($prerequisite)) {
+            $prerequisiteArray = "['" . implode("', '", $prerequisite) . "']";
+            $prerequisiteValue = $prerequisiteArray;
+        } else {
+            $prerequisiteValue = 'null';
+        }
         $stub = str_replace('return null;', "return {$prerequisiteValue};", $stub);
 
         $this->files->put($path, $stub);
@@ -87,7 +96,15 @@ class MakeAchievementCommand extends GeneratorCommand
         $this->line("Achievement name: <info>{$achievementName}</info>");
         $this->line("Goal: <info>{$goal}</info>");
         $this->line("Secret: <info>" . ($isSecret ? 'yes' : 'no') . "</info>");
-        $this->line("Prerequisite: <info>" . ($prerequisite ?: 'none') . "</info>");
+
+        // Display prerequisites
+        if ($prerequisite === null) {
+            $this->line("Prerequisites: <info>none</info>");
+        } elseif (is_string($prerequisite)) {
+            $this->line("Prerequisites: <info>{$prerequisite}</info>");
+        } elseif (is_array($prerequisite)) {
+            $this->line("Prerequisites: <info>" . implode(', ', $prerequisite) . "</info>");
+        }
 
         return true;
     }
@@ -220,15 +237,16 @@ class MakeAchievementCommand extends GeneratorCommand
     }
 
     /**
-     * Ask user for prerequisite achievement
+     * Ask user for prerequisite achievement(s)
      */
-    protected function askForPrerequisite(): ?string
+    protected function askForPrerequisite(): string|array|null
     {
         $this->line('Available achievements:');
         try {
             $existingKeys = AchievementTracker::getAchievementKeys();
             if (empty($existingKeys)) {
                 $this->line('  <comment>No existing achievements found</comment>');
+                return null;
             } else {
                 foreach ($existingKeys as $key) {
                     $this->line("  - {$key}");
@@ -236,11 +254,51 @@ class MakeAchievementCommand extends GeneratorCommand
             }
         } catch (\Exception $e) {
             $this->line('  <comment>Could not load existing achievements</comment>');
+            return null;
         }
 
-        $prerequisite = $this->ask('Enter prerequisite achievement key (optional, press enter to skip)');
+        $hasPrerequisites = $this->confirm('Does this achievement have prerequisites?', false);
 
-        return empty($prerequisite) ? null : $prerequisite;
+        if (!$hasPrerequisites) {
+            return null;
+        }
+
+        $multiplePrerequisites = $this->confirm('Multiple prerequisites?', false);
+
+        if ($multiplePrerequisites) {
+            $prerequisites = [];
+            $this->info('Enter prerequisite keys one by one (press enter with empty value to finish):');
+
+            while (true) {
+                $prerequisite = $this->ask('Enter prerequisite achievement key (or press enter to finish)');
+
+                if (empty($prerequisite)) {
+                    break;
+                }
+
+                if (in_array($prerequisite, $existingKeys)) {
+                    $prerequisites[] = $prerequisite;
+                    $this->line("  ✓ Added: {$prerequisite}");
+                } else {
+                    $this->error("  ✗ Achievement '{$prerequisite}' does not exist!");
+                }
+            }
+
+            return empty($prerequisites) ? null : $prerequisites;
+        } else {
+            $prerequisite = $this->ask('Enter prerequisite achievement key');
+
+            if (empty($prerequisite)) {
+                return null;
+            }
+
+            if (!in_array($prerequisite, $existingKeys)) {
+                $this->error("Achievement '{$prerequisite}' does not exist!");
+                return null;
+            }
+
+            return $prerequisite;
+        }
     }
 
     /**

@@ -8,9 +8,10 @@ use Ram64\LaravelMerit\Models\AchieverAchievement;
 abstract class AchievementDefinition extends BaseAchievementDefinition
 {
     /**
-     * Get the achievement that must be completed before this one
+     * Get the achievement(s) that must be completed before this one
+     * Can return a single key (string) or multiple keys (array)
      */
-    public static function prerequisite(): ?string
+    public static function prerequisite(): string|array|null
     {
         return null;
     }
@@ -28,17 +29,31 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
      */
     public static function canStart(Model $achiever): bool
     {
-        $prerequisite = static::prerequisite();
+        $prerequisites = static::prerequisite();
 
-        if (!$prerequisite) {
+        if (!$prerequisites) {
             return true;
         }
 
-        return AchieverAchievement::where('achiever_id', $achiever->id)
-            ->where('achiever_type', get_class($achiever))
-            ->where('achievement_key', $prerequisite)
-            ->whereNotNull('unlocked_at')
-            ->exists();
+        // Convert single prerequisite to array for uniform handling
+        if (is_string($prerequisites)) {
+            $prerequisites = [$prerequisites];
+        }
+
+        // Check if all prerequisites are unlocked
+        foreach ($prerequisites as $prerequisite) {
+            $isUnlocked = AchieverAchievement::where('achiever_id', $achiever->id)
+                ->where('achiever_type', get_class($achiever))
+                ->where('achievement_key', $prerequisite)
+                ->whereNotNull('unlocked_at')
+                ->exists();
+
+            if (!$isUnlocked) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

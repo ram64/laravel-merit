@@ -55,9 +55,11 @@ class DummyClass extends AchievementDefinition
         return static::qualifiesFor($achiever) ? static::goal() : 0;
     }
 
-    public static function prerequisite(): ?string
+    public static function prerequisite(): string|array|null
     {
-        // TODO: Return the key of a required achievement, or null if none
+        // TODO: Return the key(s) of required achievement(s), or null if none
+        // Single prerequisite: return 'achievement_key';
+        // Multiple prerequisites: return ['achievement_key1', 'achievement_key2'];
         return null;
     }
 }
