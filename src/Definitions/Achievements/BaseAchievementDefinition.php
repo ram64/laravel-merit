@@ -127,13 +127,6 @@ abstract class BaseAchievementDefinition
         return max(0, static::goal() - static::getProgress($achiever));
     }
 
-    /**
-     * Return the key of the previous achievement in a chain
-     */
-    public static function previous(): ?string
-    {
-        return null; // default: no dependency
-    }
 
     /**
      * Check if this achievement should be visible to the achiever
