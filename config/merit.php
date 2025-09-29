@@ -22,7 +22,7 @@ return [
     'queue_connection' => env('MERIT_QUEUE_CONNECTION', null),
 
     'achievements_namespace' => env('MERIT_ACHIEVEMENTS_NAMESPACE', 'App\\Achievements\\'),
-    'achievements_path' => env('MERIT_ACHIEVEMENTS_PATH', 'app/Achievements'),
+    'achievements_path' => app_path(env('MERIT_ACHIEVEMENTS_PATH', 'Achievements')),
 
     /**
      * Debug settings for achievement tracking
