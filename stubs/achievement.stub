@@ -2,7 +2,7 @@
 
 namespace DummyNamespace;
 
-use Ram64\LaravelMerit\Achievements\AchievementDefinition;
+use Ram64\LaravelMerit\Definitions\Achievements\AchievementDefinition;
 use Illuminate\Database\Eloquent\Model;
 
 class DummyClass extends AchievementDefinition

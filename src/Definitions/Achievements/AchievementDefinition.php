@@ -1,6 +1,6 @@
 <?php
 
-namespace Ram64\LaravelMerit\Achievements;
+namespace Ram64\LaravelMerit\Definitions\Achievements;
 
 use Illuminate\Database\Eloquent\Model;
 use Ram64\LaravelMerit\Models\AchieverAchievement;
