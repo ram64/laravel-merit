@@ -9,7 +9,10 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
 {
     /**
      * Get the achievement(s) that must be completed before this one
-     * Can return a single key (string) or multiple keys (array)
+     * Can return:
+     * - A single key (string): 'achievement_key'
+     * - A single class (string): FirstPostAchievement::class
+     * - Multiple mixed (array): ['achievement_key', SecondPostAchievement::class]
      */
     public static function prerequisite(): string|array|null
     {
@@ -42,9 +45,12 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
 
         // Check if all prerequisites are unlocked
         foreach ($prerequisites as $prerequisite) {
+            // Extract key from class name if it's a class
+            $prerequisiteKey = static::extractAchievementKey($prerequisite);
+
             $isUnlocked = AchieverAchievement::where('achiever_id', $achiever->id)
                 ->where('achiever_type', get_class($achiever))
-                ->where('achievement_key', $prerequisite)
+                ->where('achievement_key', $prerequisiteKey)
                 ->whereNotNull('unlocked_at')
                 ->exists();
 
@@ -54,6 +60,27 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
         }
 
         return true;
+    }
+
+    /**
+     * Extract achievement key from either a string key or AchievementDefinition class
+     */
+    protected static function extractAchievementKey(string $prerequisite): string
+    {
+        // If it's a class name (contains backslashes or ends with Achievement)
+        if (str_contains($prerequisite, '\\') || class_exists($prerequisite)) {
+            // Check if it's a valid AchievementDefinition class
+            if (
+                class_exists($prerequisite) &&
+                is_subclass_of($prerequisite, BaseAchievementDefinition::class) &&
+                method_exists($prerequisite, 'key')
+            ) {
+                return $prerequisite::key();
+            }
+        }
+
+        // Otherwise, treat it as a direct key
+        return $prerequisite;
     }
 
     /**

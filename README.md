@@ -53,10 +53,126 @@ php artisan vendor:publish --tag="laravel-merit-views"
 
 ## Usage
 
+### Basic Setup
+
+1. **Add the Achiever trait to your model:**
+
 ```php
-$laravelMerit = new Ram64\LaravelMerit();
-echo $laravelMerit->echoPhrase('Hello, Ram64!');
+use Ram64\LaravelMerit\Concerns\Achiever;
+
+class User extends Authenticatable
+{
+    use Achiever;
+    
+    // Your model code...
+}
 ```
+
+2. **Create Achievement Definitions:**
+
+Use the artisan command to create new achievements:
+
+```php
+php artisan make:merit-achievement FirstPost --category=posts
+```
+
+This creates a new achievement class:
+
+```php
+<?php
+
+namespace App\Definitions\Achievements\Posts;
+
+use Illuminate\Database\Eloquent\Model;
+use Ram64\LaravelMerit\Definitions\Achievements\AchievementDefinition;
+
+class FirstPostAchievement extends AchievementDefinition
+{
+    public static function key(): string
+    {
+        return 'first_post';
+    }
+
+    public static function name(): string
+    {
+        return 'First Post';
+    }
+
+    public static function description(): string
+    {
+        return 'Create your very first post';
+    }
+
+    public static function goal(): int
+    {
+        return 1;
+    }
+
+    public static function category(): string
+    {
+        return 'posts';
+    }
+
+    public static function qualifiesFor(Model $achiever): bool
+    {
+        return static::getCount($achiever, 'posts') >= static::goal();
+    }
+
+    public static function calculateCurrentProgress(Model $achiever): int
+    {
+        return min(static::getCount($achiever, 'posts'), static::goal());
+    }
+}
+```
+
+3. **Track Achievement Progress:**
+
+```php
+use Ram64\LaravelMerit\Services\AchievementTracker;
+
+$tracker = new AchievementTracker();
+
+// Check if user unlocked any achievements
+$tracker->processCheck($user, FirstPostAchievement::class);
+
+// Or check all achievements
+$tracker->processCheck($user);
+```
+
+### Achievement Prerequisites
+
+Laravel Merit supports flexible prerequisite definitions. Achievements can require other achievements to be completed first:
+
+```php
+public static function prerequisite(): string|array|null
+{
+    // No prerequisites
+    return null;
+    
+    // Single string key prerequisite
+    return 'first_post';
+    
+    // Single class prerequisite
+    return FirstPostAchievement::class;
+    
+    // Multiple mixed prerequisites
+    return [
+        'first_post',                    // String key
+        FifthPostAchievement::class,     // Class reference
+    ];
+}
+```
+
+### Achievement Features
+
+- **Caching**: Automatic caching with configurable TTL for performance
+- **Debug Mode**: Comprehensive logging for development and troubleshooting  
+- **Secret Achievements**: Hidden achievements revealed only when unlocked
+- **Categories**: Organize achievements into logical groups
+- **Progress Tracking**: Track partial progress towards achievement goals
+- **Prerequisites**: Chain achievements with flexible dependency system
+
+For detailed documentation, see the `/docs` directory.
 
 ## Testing
 
