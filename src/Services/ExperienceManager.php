@@ -3,6 +3,7 @@
 namespace Ram64\LaravelMerit\Services;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 use Ram64\LaravelMerit\Models\Experiencer;
 
 class ExperienceManager
@@ -68,6 +69,56 @@ class ExperienceManager
     {
         $experiencer = new Experiencer();
         return $experiencer->getExperienceForLevel($level);
+    }
+
+    /**
+     * Pre-calculate level requirements for dynamic formulas.
+     * Returns an array of [level => experience_required] up to maxLevel.
+     */
+    public static function precalculateLevelRequirements(?int $maxLevel = null): array
+    {
+        $config = config('merit.experience');
+        $requirements = [];
+
+        if ($config['level_calculation'] === 'dynamic') {
+            $formula = $config['level_formula'];
+            $maxLevel = $maxLevel ?? 100; // Default to 100 levels if not specified
+
+            for ($level = 1; $level <= $maxLevel; $level++) {
+                $requirements[$level] = static::evaluateFormula($formula, $level);
+            }
+        } else {
+            // For static levels, just return the configured thresholds
+            $requirements = $config['level_thresholds'] ?? [];
+        }
+
+        return $requirements;
+    }
+
+    /**
+     * Get level requirements as a cached array.
+     * Useful for displaying level progression or validation.
+     */
+    public static function getCachedLevelRequirements(?int $maxLevel = null): array
+    {
+        $cacheKey = 'merit:level_requirements:' . ($maxLevel ?? 'default');
+        $ttl = config('merit.experience.cache_ttl', 10);
+
+        return Cache::remember($cacheKey, now()->addMinutes($ttl), function () use ($maxLevel) {
+            return static::precalculateLevelRequirements($maxLevel);
+        });
+    }
+
+    /**
+     * Evaluate a level formula for a specific level.
+     */
+    protected static function evaluateFormula(string $formula, int $level): int
+    {
+        // Simple formula evaluation - replace $level with actual value
+        $expression = str_replace('$level', $level, $formula);
+
+        // Use eval for simple expressions (could be improved with a proper expression parser)
+        return (int) eval ("return {$expression};");
     }
 
     /**
