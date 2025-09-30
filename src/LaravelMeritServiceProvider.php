@@ -20,6 +20,8 @@ class LaravelMeritServiceProvider extends PackageServiceProvider
             ->hasConfigFile()
             ->hasViews()
             ->hasMigration('create_achiever_achievements_table')
+            ->hasMigration('create_experiencers_table')
+            ->hasMigration('create_experience_logs_table')
             ->hasCommands([
                 MakeAchievementCommand::class,
             ]);
