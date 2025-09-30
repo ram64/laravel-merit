@@ -299,6 +299,28 @@ class AchievementTracker
     }
 
     /**
+     * Get a specific achievement definition instance by key
+     */
+    public static function getDefinition(string $key): ?object
+    {
+        $className = static::getAchievement($key);
+
+        if (!$className) {
+            return null;
+        }
+
+        return new $className();
+    }
+
+    /**
+     * Get the achievement definition from an AchieverAchievement model
+     */
+    public static function getDefinitionFromAchievement(AchieverAchievement $achievement): ?object
+    {
+        return static::getDefinition($achievement->achievement_key);
+    }
+
+    /**
      * Get all registered achievement classes
      */
     public static function getAllAchievements(): array

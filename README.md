@@ -130,13 +130,21 @@ class FirstPostAchievement extends AchievementDefinition
 ```php
 use Ram64\LaravelMerit\Services\AchievementTracker;
 
-$tracker = new AchievementTracker();
+// Check all achievements for a user
+AchievementTracker::check($user);
 
-// Check if user unlocked any achievements
-$tracker->processCheck($user, FirstPostAchievement::class);
+// Get achievement definition by key
+$definition = AchievementTracker::getDefinition('first_post');
 
-// Or check all achievements
-$tracker->processCheck($user);
+// Get definition from an AchieverAchievement model
+$achievement = $user->achievements()->where('achievement_key', 'first_post')->first();
+$definition = AchievementTracker::getDefinitionFromAchievement($achievement);
+
+// Get all achievement keys
+$keys = AchievementTracker::getAchievementKeys();
+
+// Get achievement display data
+$display = AchievementTracker::getAchievementDisplay($user, 'first_post');
 ```
 
 ### Achievement Prerequisites
