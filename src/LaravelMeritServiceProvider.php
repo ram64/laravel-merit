@@ -17,7 +17,7 @@ class LaravelMeritServiceProvider extends PackageServiceProvider
          */
         $package
             ->name('laravel-merit')
-            ->hasConfigFile()
+            ->hasConfigFile('merit')
             ->hasViews()
             ->hasMigration('create_achiever_achievements_table')
             ->hasMigration('create_experiencers_table')
