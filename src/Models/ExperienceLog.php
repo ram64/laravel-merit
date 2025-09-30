@@ -17,14 +17,12 @@ class ExperienceLog extends Model
     protected $fillable = [
         'experiencer_id',
         'experiencer_type',
-        'experience_change',
         'experience_before',
         'experience_after',
         'level_before',
         'level_after',
         'reason',
         'metadata',
-        'event_type',
     ];
 
     /**
@@ -33,7 +31,6 @@ class ExperienceLog extends Model
      * @var array
      */
     protected $casts = [
-        'experience_change' => 'integer',
         'experience_before' => 'integer',
         'experience_after' => 'integer',
         'level_before' => 'integer',
@@ -63,7 +60,7 @@ class ExperienceLog extends Model
      */
     public function scopeGained($query)
     {
-        return $query->where('event_type', 'gained');
+        return $query->whereColumn('experience_after', '>', 'experience_before');
     }
 
     /**
@@ -71,7 +68,7 @@ class ExperienceLog extends Model
      */
     public function scopeLost($query)
     {
-        return $query->where('event_type', 'lost');
+        return $query->whereColumn('experience_after', '<', 'experience_before');
     }
 
     /**
@@ -79,7 +76,16 @@ class ExperienceLog extends Model
      */
     public function scopeLevelUps($query)
     {
-        return $query->where('event_type', 'level_up');
+        return $query->whereNotNull('level_after')
+            ->whereColumn('level_after', '>', 'level_before');
+    }
+
+    /**
+     * Get the experience change amount (calculated from before/after).
+     */
+    public function getExperienceChangeAttribute(): int
+    {
+        return $this->experience_after - $this->experience_before;
     }
 
     /**
@@ -87,7 +93,7 @@ class ExperienceLog extends Model
      */
     public function isGain(): bool
     {
-        return $this->event_type === 'gained';
+        return $this->experience_after > $this->experience_before;
     }
 
     /**
@@ -95,7 +101,7 @@ class ExperienceLog extends Model
      */
     public function isLoss(): bool
     {
-        return $this->event_type === 'lost';
+        return $this->experience_after < $this->experience_before;
     }
 
     /**
@@ -103,6 +109,18 @@ class ExperienceLog extends Model
      */
     public function isLevelUp(): bool
     {
-        return $this->event_type === 'level_up';
+        return $this->level_after !== null && $this->level_after > $this->level_before;
+    }
+
+    /**
+     * Get the inferred event type.
+     */
+    public function getEventTypeAttribute(): string
+    {
+        if ($this->isLevelUp()) {
+            return 'level_up';
+        }
+
+        return $this->isGain() ? 'gained' : 'lost';
     }
 }

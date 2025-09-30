@@ -83,14 +83,12 @@ trait CanExperience
             $experienceLog = ExperienceLog::create([
                 'experiencer_id' => $this->id,
                 'experiencer_type' => get_class($this),
-                'experience_change' => $amount,
                 'experience_before' => $oldExperience,
                 'experience_after' => $newExperience,
                 'level_before' => $oldLevel,
                 'level_after' => $newLevel > $oldLevel ? $newLevel : null,
                 'reason' => $reason,
                 'metadata' => $metadata,
-                'event_type' => 'gained',
             ]);
         }
 
@@ -137,14 +135,12 @@ trait CanExperience
             $experienceLog = ExperienceLog::create([
                 'experiencer_id' => $this->id,
                 'experiencer_type' => get_class($this),
-                'experience_change' => -$amount,
                 'experience_before' => $oldExperience,
                 'experience_after' => $newExperience,
                 'level_before' => $oldLevel,
                 'level_after' => null, // No level change on loss
                 'reason' => $reason,
                 'metadata' => $metadata,
-                'event_type' => 'lost',
             ]);
         }
 
@@ -184,14 +180,12 @@ trait CanExperience
             $levelUpLog = ExperienceLog::create([
                 'experiencer_id' => $this->id,
                 'experiencer_type' => get_class($this),
-                'experience_change' => 0,
                 'experience_before' => $this->getExperience(),
                 'experience_after' => $this->getExperience(),
                 'level_before' => $oldLevel,
                 'level_after' => $newLevel,
                 'reason' => $reason,
                 'metadata' => ['level_up' => true],
-                'event_type' => 'level_up',
             ]);
         }
 

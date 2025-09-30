@@ -89,9 +89,16 @@ class ExperienceManager
 
         return [
             'total_experiencers' => \DB::table($table)->count(),
-            'total_experience_awarded' => \DB::table($logsTable)->where('event_type', 'gained')->sum('experience_change'),
-            'total_experience_lost' => \DB::table($logsTable)->where('event_type', 'lost')->sum(\DB::raw('ABS(experience_change)')),
-            'total_level_ups' => \DB::table($logsTable)->where('event_type', 'level_up')->count(),
+            'total_experience_awarded' => \DB::table($logsTable)
+                ->whereColumn('experience_after', '>', 'experience_before')
+                ->sum(\DB::raw('experience_after - experience_before')),
+            'total_experience_lost' => \DB::table($logsTable)
+                ->whereColumn('experience_after', '<', 'experience_before')
+                ->sum(\DB::raw('experience_before - experience_after')),
+            'total_level_ups' => \DB::table($logsTable)
+                ->whereNotNull('level_after')
+                ->whereColumn('level_after', '>', 'level_before')
+                ->count(),
             'average_level' => \DB::table($table)->avg('level'),
             'highest_level' => \DB::table($table)->max('level'),
         ];

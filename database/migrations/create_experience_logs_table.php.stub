@@ -14,12 +14,11 @@ return new class extends Migration
             // Polymorphic experiencer
             $table->morphs('experiencer'); // creates experiencer_id and experiencer_type
 
-            // Experience change details
-            $table->integer('experience_change'); // Can be positive or negative
+            // Experience change details (before/after is sufficient, change can be calculated)
             $table->unsignedInteger('experience_before');
             $table->unsignedInteger('experience_after');
 
-            // Level change details (if any)
+            // Level change details (if any) - can infer level up from level_after > level_before
             $table->unsignedSmallInteger('level_before');
             $table->unsignedSmallInteger('level_after')->nullable(); // Null if no level change
 
@@ -27,13 +26,9 @@ return new class extends Migration
             $table->string('reason')->nullable();
             $table->json('metadata')->nullable();
 
-            // Event type
-            $table->enum('event_type', ['gained', 'lost', 'level_up'])->default('gained');
-
             $table->timestamps();
 
             $table->index(['experiencer_id', 'experiencer_type']);
-            $table->index('event_type');
             $table->index('created_at');
         });
     }
