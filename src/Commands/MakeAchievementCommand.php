@@ -243,10 +243,9 @@ class MakeAchievementCommand extends GeneratorCommand
     {
         $this->line('Available achievements:');
         try {
-            $existingKeys = AchievementTracker::getAchievementKeys();
+            $existingKeys = $this->getAvailableAchievementKeys();
             if (empty($existingKeys)) {
                 $this->line('  <comment>No existing achievements found</comment>');
-                return null;
             } else {
                 foreach ($existingKeys as $key) {
                     $this->line("  - {$key}");
@@ -254,7 +253,7 @@ class MakeAchievementCommand extends GeneratorCommand
             }
         } catch (\Exception $e) {
             $this->line('  <comment>Could not load existing achievements</comment>');
-            return null;
+            $existingKeys = [];
         }
 
         $hasPrerequisites = $this->confirm('Does this achievement have prerequisites?', false);
@@ -268,6 +267,7 @@ class MakeAchievementCommand extends GeneratorCommand
         if ($multiplePrerequisites) {
             $prerequisites = [];
             $this->info('Enter prerequisite keys one by one (press enter with empty value to finish):');
+            $this->line('  <comment>Tip: You can reference existing achievements or enter custom keys</comment>');
 
             while (true) {
                 $prerequisite = $this->ask('Enter prerequisite achievement key (or press enter to finish)');
@@ -276,12 +276,8 @@ class MakeAchievementCommand extends GeneratorCommand
                     break;
                 }
 
-                if (in_array($prerequisite, $existingKeys)) {
-                    $prerequisites[] = $prerequisite;
-                    $this->line("  ✓ Added: {$prerequisite}");
-                } else {
-                    $this->error("  ✗ Achievement '{$prerequisite}' does not exist!");
-                }
+                $prerequisites[] = $prerequisite;
+                $this->line("  ✓ Added: {$prerequisite}");
             }
 
             return empty($prerequisites) ? null : $prerequisites;
@@ -289,11 +285,6 @@ class MakeAchievementCommand extends GeneratorCommand
             $prerequisite = $this->ask('Enter prerequisite achievement key');
 
             if (empty($prerequisite)) {
-                return null;
-            }
-
-            if (!in_array($prerequisite, $existingKeys)) {
-                $this->error("Achievement '{$prerequisite}' does not exist!");
                 return null;
             }
 
@@ -318,5 +309,17 @@ class MakeAchievementCommand extends GeneratorCommand
     protected function askIfSecret(): bool
     {
         return $this->confirm('Should this be a secret achievement? (hidden until unlocked)', false);
+    }
+
+    /**
+     * Get available achievement keys from the configured achievements directory
+     */
+    protected function getAvailableAchievementKeys(): array
+    {
+        try {
+            return AchievementTracker::getAchievementKeys();
+        } catch (\Exception $e) {
+            return [];
+        }
     }
 }
