@@ -73,6 +73,12 @@ class AchievementTracker
                 'goal' => $achievementClass::goal()
             ]);
 
+            // Skip if no progress at all - don't create records for 0 progress
+            if ($currentProgress <= 0) {
+                static::debug("No progress for achievement: {$achievementKey}");
+                continue;
+            }
+
             $record = AchieverAchievement::firstOrCreate(
                 [
                     'achiever_id' => $achiever->id,
@@ -80,7 +86,7 @@ class AchievementTracker
                     'achievement_key' => $achievementClass::key(),
                 ],
                 [
-                    'progress' => 1,
+                    'progress' => $currentProgress,
                     'goal' => $achievementClass::goal(),
                     'started_at' => now(),
                 ]
