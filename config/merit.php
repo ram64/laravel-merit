@@ -33,4 +33,65 @@ return [
         'log_level' => env('MERIT_DEBUG_LEVEL', 'debug'),
     ],
 
+    /**
+     * Experience system configuration
+     */
+    'experience' => [
+        /**
+         * The table used to store experiencer data.
+         */
+        'table' => env('MERIT_EXPERIENCE_TABLE', 'experiencers'),
+
+        /**
+         * The table used to store experience logs.
+         */
+        'logs_table' => env('MERIT_EXPERIENCE_LOGS_TABLE', 'experience_logs'),
+
+        /**
+         * Whether to enable experience logging.
+         */
+        'logging_enabled' => env('MERIT_EXPERIENCE_LOGGING', true),
+
+        /**
+         * Cache TTL in minutes for experience data.
+         */
+        'cache_ttl' => env('MERIT_EXPERIENCE_CACHE_TTL', 10),
+
+        /**
+         * Level calculation method: 'static' or 'dynamic'
+         */
+        'level_calculation' => env('MERIT_LEVEL_CALCULATION', 'static'),
+
+        /**
+         * Static level thresholds (only used when level_calculation is 'static')
+         * Format: [level => required_experience]
+         */
+        'level_thresholds' => [
+            1 => 0,
+            2 => 100,
+            3 => 250,
+            4 => 500,
+            5 => 1000,
+            6 => 1750,
+            7 => 2750,
+            8 => 4000,
+            9 => 5500,
+            10 => 7500,
+            // Add more levels as needed
+        ],
+
+        /**
+         * Dynamic level formula (only used when level_calculation is 'dynamic')
+         * Formula should return the experience required for a given level
+         * Available variables: $level
+         */
+        'level_formula' => '50 * $level * $level', // Example: quadratic growth
+
+        /**
+         * Whether to queue experience events or dispatch them synchronously.
+         */
+        'queue_events' => env('MERIT_EXPERIENCE_QUEUE_EVENTS', false),
+        'queue_connection' => env('MERIT_EXPERIENCE_QUEUE_CONNECTION', null),
+    ],
+
 ];

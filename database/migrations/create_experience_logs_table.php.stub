@@ -1,0 +1,45 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create(config('merit.experience_logs_table', 'experience_logs'), function (Blueprint $table) {
+            $table->id();
+
+            // Polymorphic experiencer
+            $table->morphs('experiencer'); // creates experiencer_id and experiencer_type
+
+            // Experience change details
+            $table->integer('experience_change'); // Can be positive or negative
+            $table->unsignedInteger('experience_before');
+            $table->unsignedInteger('experience_after');
+
+            // Level change details (if any)
+            $table->unsignedSmallInteger('level_before');
+            $table->unsignedSmallInteger('level_after')->nullable(); // Null if no level change
+
+            // Reason for the experience change
+            $table->string('reason')->nullable();
+            $table->json('metadata')->nullable();
+
+            // Event type
+            $table->enum('event_type', ['gained', 'lost', 'level_up'])->default('gained');
+
+            $table->timestamps();
+
+            $table->index(['experiencer_id', 'experiencer_type']);
+            $table->index('event_type');
+            $table->index('created_at');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists(config('merit.experience_logs_table', 'experience_logs'));
+    }
+};

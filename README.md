@@ -163,16 +163,32 @@ public static function prerequisite(): string|array|null
 }
 ```
 
-### Achievement Features
+### Experience & Leveling System
 
-- **Caching**: Automatic caching with configurable TTL for performance
-- **Debug Mode**: Comprehensive logging for development and troubleshooting  
-- **Secret Achievements**: Hidden achievements revealed only when unlocked
-- **Categories**: Organize achievements into logical groups
-- **Progress Tracking**: Track partial progress towards achievement goals
-- **Prerequisites**: Chain achievements with flexible dependency system
+Laravel Merit includes a comprehensive experience and leveling system:
 
-For detailed documentation, see the `/docs` directory.
+```php
+use Ram64\LaravelMerit\Concerns\Experiencer;
+
+class User extends Authenticatable
+{
+    use Experiencer;
+}
+
+// Award experience
+$user->gainExperience(100, 'Completed quest');
+
+// Check level and progress
+$level = $user->getLevel();
+$progress = $user->getExperienceProgress();
+```
+
+**Features:**
+- Flexible level calculation (static thresholds or dynamic formulas)
+- Experience logging with optional enable/disable
+- Events for experience changes and level-ups
+- Caching for performance
+- Polymorphic support for any model
 
 ## Testing
 

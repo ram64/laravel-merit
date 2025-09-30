@@ -1,0 +1,36 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create(config('merit.experience_table', 'experiencers'), function (Blueprint $table) {
+            $table->id();
+
+            // Polymorphic experiencer
+            $table->morphs('experiencer'); // creates experiencer_id and experiencer_type
+
+            // Experience and level tracking
+            $table->unsignedInteger('experience')->default(0);
+            $table->unsignedSmallInteger('level')->default(1);
+
+            // Optional metadata as JSON
+            $table->json('metadata')->nullable();
+
+            $table->timestamps();
+
+            // Ensure each experiencer can only have one record
+            $table->unique(['experiencer_type', 'experiencer_id'], 'experiencer_unique');
+            $table->index(['experiencer_id', 'experiencer_type']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists(config('merit.experience_table', 'experiencers'));
+    }
+};
