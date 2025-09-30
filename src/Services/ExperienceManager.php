@@ -134,9 +134,11 @@ class ExperienceManager
      */
     protected function ensureUsesExperiencerTrait(Model $experiencer): void
     {
-        if (!method_exists($experiencer, 'gainExperience') ||
+        if (
+            !method_exists($experiencer, 'gainExperience') ||
             !method_exists($experiencer, 'loseExperience') ||
-            !method_exists($experiencer, 'getExperience')) {
+            !method_exists($experiencer, 'getExperience')
+        ) {
             throw new \InvalidArgumentException('Model must use the Experiencer trait');
         }
     }

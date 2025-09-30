@@ -129,7 +129,7 @@ class Experiencer extends Model
         $expression = str_replace('$level', $level, $formula);
 
         // Use eval for simple expressions (could be improved with a proper expression parser)
-        return (int) eval("return $expression;");
+        return (int) eval ("return $expression;");
     }
 
     /**
