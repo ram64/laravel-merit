@@ -55,14 +55,14 @@ php artisan vendor:publish --tag="laravel-merit-views"
 
 ### Basic Setup
 
-1. **Add the Achiever trait to your model:**
+1. **Add the CanAchieve trait to your model:**
 
 ```php
-use Ram64\LaravelMerit\Concerns\Achiever;
+use Ram64\LaravelMerit\Concerns\CanAchieve;
 
 class User extends Authenticatable
 {
-    use Achiever;
+    use CanAchieve;
     
     // Your model code...
 }
@@ -175,8 +175,17 @@ class User extends Authenticatable
     use Experiencer;
 }
 
+```php
+use Ram64\LaravelMerit\Concerns\CanExperience;
+
+class User extends Authenticatable
+{
+    use CanExperience;
+}
+
 // Award experience
 $user->gainExperience(100, 'Completed quest');
+```
 
 // Check level and progress
 $level = $user->getLevel();

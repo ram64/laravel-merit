@@ -3,11 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Ram64\LaravelMerit\Concerns\Experiencer;
+use Ram64\LaravelMerit\Concerns\CanExperience;
 
 class User extends Model
 {
-    use Experiencer;
+    use CanExperience;
 
     protected $fillable = [
         'name',

@@ -9,7 +9,7 @@ use Ram64\LaravelMerit\Events\LevelledUp;
 use Ram64\LaravelMerit\Models\Experiencer;
 use Ram64\LaravelMerit\Models\ExperienceLog;
 
-trait Experiencer
+trait CanExperience
 {
     /**
      * Get the experiencer record for this model.

@@ -64,7 +64,7 @@ AchievementTracker::clearUserCache($user);
 // Clear achievement discovery cache
 AchievementTracker::clearDiscoveryCache();
 
-// Clear caches via Achiever trait
+// Clear caches via CanAchieve trait
 $user->clearAchievementCaches();
 ```
 
@@ -101,7 +101,7 @@ AchievementTracker::check($user);
 $user->clearAchievementCaches();
 ```
 
-### Using Achiever Trait Methods
+### Using CanAchieve Trait Methods
 ```php
 // Cached methods on your User model
 $visibleAchievements = $user->getVisibleAchievements();

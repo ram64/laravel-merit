@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Cache;
 use Ram64\LaravelMerit\Models\AchieverAchievement;
 use Ram64\LaravelMerit\Services\AchievementTracker;
 
-trait Achiever
+trait CanAchieve
 {
     public function achievements()
     {

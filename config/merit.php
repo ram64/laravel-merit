@@ -4,7 +4,7 @@ return [
 
     /**
      * The default Achiever model.
-     * This model should use the Achiever trait.
+     * This model should use the CanAchieve trait.
      */
     'achiever_model' => env('MERIT_ACHIEVER_MODEL', \App\Models\User::class),
     /**
@@ -39,6 +39,7 @@ return [
     'experience' => [
         /**
          * The table used to store experiencer data.
+         * Models using the CanExperience trait will have their experience stored here.
          */
         'table' => env('MERIT_EXPERIENCE_TABLE', 'experiencers'),
 

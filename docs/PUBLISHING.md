@@ -31,7 +31,7 @@ Once published, you can customize these settings in `config/merit.php`:
 return [
     /**
      * The default Achiever model.
-     * This model should use the Achiever trait.
+     * This model should use the CanAchieve trait.
      */
     'achiever_model' => env('MERIT_ACHIEVER_MODEL', \App\Models\User::class),
 
@@ -89,7 +89,7 @@ MERIT_QUEUE_CONNECTION=redis
 ## After Publishing
 
 1. **Review the config**: Check `config/merit.php` and adjust settings as needed
-2. **Set up your model**: Make sure your User (or other) model uses the `Achiever` trait
+2. **Set up your model**: Make sure your User (or other) model uses the `CanAchieve` trait
 3. **Create achievements**: Use `php artisan make:merit-achievement` to create your first achievements
 4. **Run migrations**: `php artisan migrate` to create the achievements table
 
