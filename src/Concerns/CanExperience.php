@@ -170,6 +170,88 @@ trait CanExperience
     }
 
     /**
+     * Set the level to a specific value, adjusting experience accordingly.
+     */
+    public function setLevel(int $targetLevel, ?string $reason = null, array $metadata = []): bool
+    {
+        if ($targetLevel <= 0) {
+            return false;
+        }
+
+        $experiencer = $this->getExperiencer();
+        $currentLevel = $experiencer->level;
+        $currentExperience = $experiencer->experience;
+
+        // Check if level decreases are allowed
+        $allowDecrease = config('merit.experience.allow_level_decrease', false);
+
+        // If level decreases not allowed and target level is lower, keep current level
+        if (!$allowDecrease && $targetLevel < $currentLevel) {
+            return true; // No change needed
+        }
+
+        // Calculate the minimum experience required for the target level
+        $requiredExperience = $experiencer->getExperienceForLevel($targetLevel);
+
+        // For level increases or allowed decreases, ensure we have at least the required experience
+        // For natural decreases (not allowed), keep current experience
+        if ($allowDecrease || $targetLevel > $currentLevel) {
+            $newExperience = max($currentExperience, $requiredExperience);
+        } else {
+            $newExperience = $currentExperience;
+        }
+
+        $newLevel = $targetLevel;
+
+        // Update the experiencer
+        $experiencer->update([
+            'experience' => $newExperience,
+            'level' => $newLevel,
+        ]);
+
+        // Log the level change if enabled
+        $experienceLog = null;
+        if (config('merit.experience.logging_enabled', true)) {
+            $experienceLog = ExperienceLog::create([
+                'experiencer_id' => $this->id,
+                'experiencer_type' => get_class($this),
+                'experience_before' => $currentExperience,
+                'experience_after' => $newExperience,
+                'level_before' => $currentLevel,
+                'level_after' => $newLevel > $currentLevel ? $newLevel : null,
+                'reason' => $reason,
+                'metadata' => array_merge($metadata, [
+                    'manual_level_set' => true,
+                    'level_decrease_allowed' => $allowDecrease
+                ]),
+            ]);
+        }
+
+        // Fire appropriate events
+        if ($newLevel > $currentLevel) {
+            // Fire experience gained if experience was increased
+            if ($newExperience > $currentExperience) {
+                ExperienceGained::dispatch($experienceLog, $this, $newExperience - $currentExperience, $reason);
+            }
+
+            // Handle level up
+            $this->handleLevelUp($currentLevel, $newLevel, $reason, $experienceLog);
+        } elseif ($newLevel < $currentLevel) {
+            // Fire experience lost if experience was decreased (forced level decrease)
+            if ($newExperience < $currentExperience) {
+                ExperienceLost::dispatch($experienceLog, $this, $currentExperience - $newExperience, $reason);
+            }
+
+            // Note: No level down event - levels decreasing is administrative
+        }
+
+        // Clear experience caches
+        $this->clearExperienceCaches();
+
+        return true;
+    }
+
+    /**
      * Handle level up logic.
      */
     protected function handleLevelUp(int $oldLevel, int $newLevel, ?string $reason, ?ExperienceLog $experienceLog = null): void

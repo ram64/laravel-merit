@@ -170,7 +170,7 @@ class Experiencer extends Model
     /**
      * Get the experience required for a specific level.
      */
-    protected function getExperienceForLevel(int $level): int
+    public function getExperienceForLevel(int $level): int
     {
         $method = config('merit.experience.level_calculation', 'static');
 

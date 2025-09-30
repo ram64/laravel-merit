@@ -89,10 +89,11 @@ return [
         'level_formula' => '50 * $level * $level', // Example: quadratic growth
 
         /**
-         * Whether to queue experience events or dispatch them synchronously.
+         * Whether to allow level decreases through setLevel() method.
+         * When false, setLevel() will only allow level increases.
+         * When true, setLevel() can decrease levels for administrative purposes.
          */
-        'queue_events' => env('MERIT_EXPERIENCE_QUEUE_EVENTS', false),
-        'queue_connection' => env('MERIT_EXPERIENCE_QUEUE_CONNECTION', null),
+        'allow_level_decrease' => env('MERIT_ALLOW_LEVEL_DECREASE', false),
     ],
 
 ];
