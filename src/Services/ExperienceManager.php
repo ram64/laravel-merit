@@ -10,52 +10,52 @@ class ExperienceManager
     /**
      * Award experience to a model.
      */
-    public function awardExperience(Model $experiencer, int $amount, ?string $reason = null, array $metadata = []): bool
+    public static function awardExperience(Model $experiencer, int $amount, ?string $reason = null, array $metadata = []): bool
     {
-        $this->ensureUsesExperiencerTrait($experiencer);
+        static::ensureUsesExperiencerTrait($experiencer);
         return $experiencer->gainExperience($amount, $reason, $metadata);
     }
 
     /**
      * Remove experience from a model.
      */
-    public function deductExperience(Model $experiencer, int $amount, ?string $reason = null, array $metadata = []): bool
+    public static function deductExperience(Model $experiencer, int $amount, ?string $reason = null, array $metadata = []): bool
     {
-        $this->ensureUsesExperiencerTrait($experiencer);
+        static::ensureUsesExperiencerTrait($experiencer);
         return $experiencer->loseExperience($amount, $reason, $metadata);
     }
 
     /**
      * Set experience to a specific amount.
      */
-    public function setExperience(Model $experiencer, int $amount, ?string $reason = null, array $metadata = []): bool
+    public static function setExperience(Model $experiencer, int $amount, ?string $reason = null, array $metadata = []): bool
     {
-        $this->ensureUsesExperiencerTrait($experiencer);
+        static::ensureUsesExperiencerTrait($experiencer);
         return $experiencer->setExperience($amount, $reason, $metadata);
     }
 
     /**
      * Get experience data for a model.
      */
-    public function getExperienceData(Model $experiencer): array
+    public static function getExperienceData(Model $experiencer): array
     {
-        $this->ensureUsesExperiencerTrait($experiencer);
+        static::ensureUsesExperiencerTrait($experiencer);
         return $experiencer->getCachedExperienceData();
     }
 
     /**
      * Get experience logs for a model.
      */
-    public function getExperienceLogs(Model $experiencer, int $limit = 50)
+    public static function getExperienceLogs(Model $experiencer, int $limit = 50)
     {
-        $this->ensureUsesExperiencerTrait($experiencer);
+        static::ensureUsesExperiencerTrait($experiencer);
         return $experiencer->experienceLogs()->limit($limit)->get();
     }
 
     /**
      * Calculate level for given experience.
      */
-    public function calculateLevel(int $experience): int
+    public static function calculateLevel(int $experience): int
     {
         $experiencer = new Experiencer();
         return $experiencer->calculateLevel($experience);
@@ -64,7 +64,7 @@ class ExperienceManager
     /**
      * Get experience required for a specific level.
      */
-    public function getExperienceForLevel(int $level): int
+    public static function getExperienceForLevel(int $level): int
     {
         $experiencer = new Experiencer();
         return $experiencer->getExperienceForLevel($level);
@@ -73,16 +73,16 @@ class ExperienceManager
     /**
      * Clear experience cache for a model.
      */
-    public function clearCache(Model $experiencer): void
+    public static function clearCache(Model $experiencer): void
     {
-        $this->ensureUsesExperiencerTrait($experiencer);
+        static::ensureUsesExperiencerTrait($experiencer);
         $experiencer->clearExperienceCaches();
     }
 
     /**
      * Get experience statistics.
      */
-    public function getStatistics(): array
+    public static function getStatistics(): array
     {
         $table = config('merit.experience.table', 'experiencers');
         $logsTable = config('merit.experience.logs_table', 'experience_logs');
@@ -107,13 +107,13 @@ class ExperienceManager
     /**
      * Bulk award experience to multiple models.
      */
-    public function bulkAwardExperience(array $awards): array
+    public static function bulkAwardExperience(array $awards): array
     {
         $results = [];
 
         foreach ($awards as $award) {
             try {
-                $result = $this->awardExperience(
+                $result = static::awardExperience(
                     $award['experiencer'],
                     $award['amount'],
                     $award['reason'] ?? null,
@@ -139,7 +139,7 @@ class ExperienceManager
     /**
      * Ensure the model uses the Experiencer trait.
      */
-    protected function ensureUsesExperiencerTrait(Model $experiencer): void
+    protected static function ensureUsesExperiencerTrait(Model $experiencer): void
     {
         if (
             !method_exists($experiencer, 'gainExperience') ||
