@@ -333,7 +333,114 @@ class AchievementTracker
     {
         static::discoverAchievements();
 
-        return array_values(static::$achievements);
+        return static::sortAchievementsTopologically(array_values(static::$achievements));
+    }
+
+    /**
+     * Sort achievements in topological order based on prerequisites
+     */
+    protected static function sortAchievementsTopologically(array $achievements): array
+    {
+        if (empty($achievements)) {
+            return $achievements;
+        }
+
+        // Build dependency graph: achievement => [prerequisites]
+        $graph = [];
+        $inDegree = [];
+        $keyToClass = [];
+
+        foreach ($achievements as $achievementClass) {
+            $key = $achievementClass::key();
+            $keyToClass[$key] = $achievementClass;
+            $graph[$key] = [];
+            $inDegree[$key] = 0;
+        }
+
+        // Build the graph and in-degrees
+        foreach ($achievements as $achievementClass) {
+            $key = $achievementClass::key();
+            $prerequisites = $achievementClass::prerequisite();
+
+            if (!$prerequisites) {
+                continue;
+            }
+
+            if (is_string($prerequisites)) {
+                $prerequisites = [$prerequisites];
+            }
+
+            foreach ($prerequisites as $prerequisite) {
+                // Extract prerequisite key
+                $prereqKey = static::extractAchievementKey($prerequisite);
+
+                // Only add edge if prerequisite exists in our achievements
+                if (isset($graph[$prereqKey])) {
+                    $graph[$prereqKey][] = $key; // prereq points to dependent
+                    $inDegree[$key]++; // dependent has one more prerequisite
+                }
+            }
+        }
+
+        // Kahn's algorithm for topological sort
+        $queue = [];
+        $result = [];
+
+        // Start with achievements that have no prerequisites (in-degree 0)
+        foreach ($inDegree as $key => $degree) {
+            if ($degree === 0) {
+                $queue[] = $key;
+            }
+        }
+
+        while (!empty($queue)) {
+            $current = array_shift($queue);
+            $result[] = $keyToClass[$current];
+
+            // For each achievement that depends on current
+            foreach ($graph[$current] as $dependent) {
+                $inDegree[$dependent]--;
+                if ($inDegree[$dependent] === 0) {
+                    $queue[] = $dependent;
+                }
+            }
+        }
+
+        // Check for cycles (shouldn't happen with proper prerequisites)
+        if (count($result) !== count($achievements)) {
+            static::debug('Cycle detected in achievement prerequisites, falling back to unsorted order', [
+                'total_achievements' => count($achievements),
+                'sorted_count' => count($result)
+            ]);
+            return $achievements; // Fallback to original order
+        }
+
+        static::debug('Achievements sorted topologically', [
+            'total' => count($result),
+            'order' => array_map(fn($class) => $class::key(), $result)
+        ]);
+
+        return $result;
+    }
+
+    /**
+     * Extract achievement key from prerequisite (string or class)
+     */
+    protected static function extractAchievementKey(string $prerequisite): string
+    {
+        // If it's a class name (contains backslashes or is a valid class)
+        if (str_contains($prerequisite, '\\') || class_exists($prerequisite)) {
+            // Check if it's a valid AchievementDefinition class
+            if (
+                class_exists($prerequisite) &&
+                method_exists($prerequisite, 'key')
+            ) {
+                return $prerequisite::key();
+            }
+        }
+
+        // Otherwise, treat it as a direct key
+        return $prerequisite;
     }
 
     /**
