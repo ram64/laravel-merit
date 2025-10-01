@@ -21,6 +21,9 @@ return [
     'queue_achievements' => env('MERIT_QUEUE_EVENTS', default: false),
     'queue_connection' => env('MERIT_QUEUE_CONNECTION', null),
 
+    /**
+     * Namespace and path for achievement definitions. This is used for auto-discovery.
+     */
     'achievements_namespace' => env('MERIT_ACHIEVEMENTS_NAMESPACE', 'App\\Definitions\\Achievements\\'),
     'achievements_path' => app_path(env('MERIT_ACHIEVEMENTS_PATH', 'Definitions/Achievements')),
 
