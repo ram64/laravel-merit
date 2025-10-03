@@ -107,9 +107,10 @@ class Experiencer extends Model
     protected function calculateDynamicLevel(int $experience): int
     {
         $formula = config('merit.experience.level_formula', '50 * $level * $level');
+        $maxLevel = config('merit.experience.max_level', 100);
         $level = 1;
 
-        while (true) {
+        while ($level <= $maxLevel) {
             $requiredExp = $this->evaluateFormula($formula, $level);
             if ($experience < $requiredExp) {
                 break;

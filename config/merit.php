@@ -92,6 +92,12 @@ return [
         'level_formula' => '50 * $level * $level', // Example: quadratic growth
 
         /**
+         * Maximum level allowed in the system
+         * Used for dynamic formulas and precalculation of level requirements
+         */
+        'max_level' => env('MERIT_MAX_LEVEL', 100),
+
+        /**
          * Whether to allow level decreases through setLevel() method.
          * When false, setLevel() will only allow level increases.
          * When true, setLevel() can decrease levels for administrative purposes.

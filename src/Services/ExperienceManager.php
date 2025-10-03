@@ -82,7 +82,7 @@ class ExperienceManager
 
         if ($config['level_calculation'] === 'dynamic') {
             $formula = $config['level_formula'];
-            $maxLevel = $maxLevel ?? 100; // Default to 100 levels if not specified
+            $maxLevel = $maxLevel ?? $config['max_level'] ?? 100; // Use config max_level, fallback to 100
 
             for ($level = 1; $level <= $maxLevel; $level++) {
                 $requirements[$level] = static::evaluateFormula($formula, $level);
