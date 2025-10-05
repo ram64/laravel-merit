@@ -228,6 +228,46 @@ $progress = $user->getExperienceProgress();
 - Caching for performance
 - Polymorphic support for any model
 
+## Performance & Caching
+
+Laravel Merit includes comprehensive caching to ensure high performance, especially with dynamic achievement content:
+
+### Cached Methods
+
+For optimal performance, use these cached methods instead of calling `name()` and `description()` directly:
+
+```php
+// Fast cached access (recommended)
+$name = FirstPostAchievement::getCachedName($user);
+$description = FirstPostAchievement::getCachedDescription($user);
+
+// Direct access (bypasses cache)
+$name = FirstPostAchievement::name($user);
+$description = FirstPostAchievement::description($user);
+```
+
+### Cache Invalidation
+
+Caches are automatically cleared when:
+- Achievement progress changes
+- Achievements are unlocked
+- Manual award/increment operations occur
+
+### Cache Configuration
+
+Configure cache TTL in `config/merit.php`:
+
+```php
+'cache_ttl' => 10, // minutes
+```
+
+### Performance Tips
+
+1. **Use `getAchievementDisplay()`** for complete achievement data - it's fully cached
+2. **Use cached methods** for individual name/description access
+3. **Avoid direct database queries** in dynamic content methods - use cached progress methods
+4. **Consider cache TTL** based on your update frequency
+
 ## Testing
 
 ```bash

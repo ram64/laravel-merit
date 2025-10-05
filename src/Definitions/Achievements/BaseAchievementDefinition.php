@@ -23,9 +23,41 @@ abstract class BaseAchievementDefinition
     abstract public static function name(?Model $achiever = null): string;
 
     /**
+     * Get cached display name for the achievement
+     */
+    public static function getCachedName(?Model $achiever = null): string
+    {
+        if ($achiever === null) {
+            return static::name(null);
+        }
+
+        $cacheKey = 'merit:name:' . get_class($achiever) . ':' . $achiever->id . ':' . static::key();
+
+        return Cache::remember($cacheKey, config('merit.cache_ttl', 10) * 60, function () use ($achiever) {
+            return static::name($achiever);
+        });
+    }
+
+    /**
      * Description of what needs to be done
      */
     abstract public static function description(?Model $achiever = null): string;
+
+    /**
+     * Get cached display description for the achievement
+     */
+    public static function getCachedDescription(?Model $achiever = null): string
+    {
+        if ($achiever === null) {
+            return static::description(null);
+        }
+
+        $cacheKey = 'merit:description:' . get_class($achiever) . ':' . $achiever->id . ':' . static::key();
+
+        return Cache::remember($cacheKey, config('merit.cache_ttl', 10) * 60, function () use ($achiever) {
+            return static::description($achiever);
+        });
+    }
 
     /**
      * The target number to reach for completion
@@ -150,7 +182,7 @@ abstract class BaseAchievementDefinition
             return 'Hidden Achievement';
         }
 
-        return static::name();
+        return static::getCachedName($achiever);
     }
 
     /**
@@ -162,6 +194,6 @@ abstract class BaseAchievementDefinition
             return 'Complete certain actions to unlock this secret achievement.';
         }
 
-        return static::description();
+        return static::getCachedDescription($achiever);
     }
 }

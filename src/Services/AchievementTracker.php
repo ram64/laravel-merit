@@ -119,6 +119,8 @@ class AchievementTracker
 
                 // Clear display cache when progress changes
                 Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
+                Cache::forget(static::getNameCacheKey($achiever, $achievementKey));
+                Cache::forget(static::getDescriptionCacheKey($achiever, $achievementKey));
             }
 
             // Check if completed
@@ -134,6 +136,8 @@ class AchievementTracker
 
                 // Clear display cache when unlocked
                 Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
+                Cache::forget(static::getNameCacheKey($achiever, $achievementKey));
+                Cache::forget(static::getDescriptionCacheKey($achiever, $achievementKey));
             }
 
             $record->save();
@@ -206,6 +210,8 @@ class AchievementTracker
 
         // Clear cache when manually awarded
         Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
+        Cache::forget(static::getNameCacheKey($achiever, $achievementKey));
+        Cache::forget(static::getDescriptionCacheKey($achiever, $achievementKey));
 
         return $record;
     }
@@ -281,6 +287,8 @@ class AchievementTracker
         // Clear cache when progress is incremented
         if ($record->progress > $oldProgress) {
             Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
+            Cache::forget(static::getNameCacheKey($achiever, $achievementKey));
+            Cache::forget(static::getDescriptionCacheKey($achiever, $achievementKey));
         }
 
         return $record;
@@ -646,6 +654,22 @@ class AchievementTracker
     }
 
     /**
+     * Generate cache key for achievement name
+     */
+    protected static function getNameCacheKey($achiever, string $achievementKey): string
+    {
+        return 'merit:name:' . get_class($achiever) . ':' . $achiever->id . ':' . $achievementKey;
+    }
+
+    /**
+     * Generate cache key for achievement description
+     */
+    protected static function getDescriptionCacheKey($achiever, string $achievementKey): string
+    {
+        return 'merit:description:' . get_class($achiever) . ':' . $achiever->id . ':' . $achievementKey;
+    }
+
+    /**
      * Clear all caches related to an achiever
      */
     public static function clearUserCache($achiever): void
@@ -658,6 +682,12 @@ class AchievementTracker
         foreach ($achievements as $achievementClass) {
             $displayKey = static::getDisplayCacheKey($achiever, $achievementClass::key());
             Cache::forget($displayKey);
+
+            // Clear name and description caches
+            $nameKey = static::getNameCacheKey($achiever, $achievementClass::key());
+            $descriptionKey = static::getDescriptionCacheKey($achiever, $achievementClass::key());
+            Cache::forget($nameKey);
+            Cache::forget($descriptionKey);
         }
 
         static::debug('Cleared user achievement caches', [
