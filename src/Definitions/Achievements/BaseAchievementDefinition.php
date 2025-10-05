@@ -20,12 +20,12 @@ abstract class BaseAchievementDefinition
     /**
      * Display name for the achievement
      */
-    abstract public static function name(): string;
+    abstract public static function name(?Model $achiever = null): string;
 
     /**
      * Description of what needs to be done
      */
-    abstract public static function description(): string;
+    abstract public static function description(?Model $achiever = null): string;
 
     /**
      * The target number to reach for completion
