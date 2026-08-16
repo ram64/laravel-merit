@@ -1,28 +1,39 @@
-# name: PHPStan
+name: PHPStan
 
-# on:
-#   push:
-#     paths:
-#       - '**.php'
-#       - 'phpstan.neon.dist'
-#       - '.github/workflows/phpstan.yml'
+on:
+  push:
+    paths:
+      - '**.php'
+      - 'phpstan.neon.dist'
+      - '.github/workflows/phpstan.yml'
+  pull_request:
+    paths:
+      - '**.php'
+      - 'phpstan.neon.dist'
+      - '.github/workflows/phpstan.yml'
 
-# jobs:
-#   phpstan:
-#     name: phpstan
-#     runs-on: ubuntu-latest
-#     timeout-minutes: 5
-#     steps:
-#       - uses: actions/checkout@v5
+jobs:
+  phpstan:
+    name: phpstan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
 
-#       - name: Setup PHP
-#         uses: shivammathur/setup-php@v2
-#         with:
-#           php-version: '8.4'
-#           coverage: none
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
 
-#       - name: Install composer dependencies
-#         uses: ramsey/composer-install@v3
+      # composer.lock is gitignored, so resolve explicitly rather than relying
+      # on `composer install` falling back to an update.
+      - name: Install composer dependencies
+        uses: ramsey/composer-install@v3
+        with:
+          dependency-versions: highest
 
-#       - name: Run PHPStan
-#         run: ./vendor/bin/phpstan --error-format=github
+      # There is no baseline, so this fails on any new error rather than
+      # letting one be appended to a file nobody reads.
+      - name: Run PHPStan
+        run: ./vendor/bin/phpstan analyse --error-format=github --no-progress
