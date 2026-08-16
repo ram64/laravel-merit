@@ -13,9 +13,109 @@ use Ram64\LaravelMerit\Models\AchieverAchievement;
 abstract class BaseAchievementDefinition
 {
     /**
+     * Unlocked achievement keys per achiever, held only for the length of an
+     * open window. Shared across every definition, because it is keyed by
+     * achiever rather than by achievement.
+     *
+     * @var array<string, array<string, int>>
+     */
+    private static array $unlockedKeys = [];
+
+    /**
      * Unique identifier for the achievement
      */
     abstract public static function key(): string;
+
+    /**
+     * Fetch the achiever's unlocked keys once and hold them until
+     * flushUnlockedKeys().
+     *
+     * Both gates that ask "has this achiever unlocked X" — the prerequisite
+     * check in canStart() and the secret check in isTextHiddenFrom() — answer
+     * from the held set while it is open, so a pass over many achievements
+     * costs one query rather than one per achievement.
+     *
+     * Pair with flushUnlockedKeys() in a finally. While a window is open, an
+     * unlock made outside noteUnlocked() will not be seen.
+     */
+    public static function primeUnlockedKeys(Model $achiever): void
+    {
+        self::$unlockedKeys[self::achieverKey($achiever)] = static::fetchUnlockedKeys($achiever);
+    }
+
+    /**
+     * Close the window opened by primeUnlockedKeys().
+     */
+    public static function flushUnlockedKeys(?Model $achiever = null): void
+    {
+        if ($achiever === null) {
+            self::$unlockedKeys = [];
+
+            return;
+        }
+
+        unset(self::$unlockedKeys[self::achieverKey($achiever)]);
+    }
+
+    /**
+     * Whether a window is already open for this achiever.
+     *
+     * Callers use this to avoid closing a window somebody above them opened.
+     */
+    public static function hasUnlockedKeysWindow(Model $achiever): bool
+    {
+        return isset(self::$unlockedKeys[self::achieverKey($achiever)]);
+    }
+
+    /**
+     * Record an unlock against an open window.
+     *
+     * This is what lets a chain complete in a single pass: a prerequisite
+     * unlocked earlier in a run has to be visible to its dependents later in
+     * the same run. A no-op when no window is open.
+     */
+    public static function noteUnlocked(Model $achiever, string $achievementKey): void
+    {
+        $achieverKey = self::achieverKey($achiever);
+
+        if (isset(self::$unlockedKeys[$achieverKey])) {
+            self::$unlockedKeys[$achieverKey][$achievementKey] = 1;
+        }
+    }
+
+    /**
+     * The held set for this achiever, or null when no window is open.
+     *
+     * @return array<string, int>|null
+     */
+    protected static function unlockedKeysWindow(Model $achiever): ?array
+    {
+        return self::$unlockedKeys[self::achieverKey($achiever)] ?? null;
+    }
+
+    /**
+     * Every achievement key this achiever has unlocked.
+     *
+     * @return array<string, int>
+     */
+    protected static function fetchUnlockedKeys(Model $achiever): array
+    {
+        return array_flip(
+            AchieverAchievement::where('achiever_id', $achiever->getKey())
+                ->where('achiever_type', get_class($achiever))
+                ->whereNotNull('unlocked_at')
+                ->pluck('achievement_key')
+                ->all()
+        );
+    }
+
+    /**
+     * Identify one achiever within the held set.
+     */
+    private static function achieverKey(Model $achiever): string
+    {
+        return get_class($achiever).':'.$achiever->getKey();
+    }
 
     /**
      * Display name for the achievement
@@ -194,10 +294,25 @@ abstract class BaseAchievementDefinition
      *
      * The gate sits in front of the cache, and only real text is ever cached,
      * so anything reading those keys directly has to re-apply this.
+     *
+     * isSecret() is checked first because it is a constant: a batch with no
+     * secrets in it never asks about unlocks at all. When it does ask and a
+     * window is open, it answers from there rather than spending a lookup per
+     * secret achievement.
      */
     public static function isTextHiddenFrom(Model $achiever): bool
     {
-        return static::isSecret() && ! static::isUnlocked($achiever);
+        if (! static::isSecret()) {
+            return false;
+        }
+
+        $unlocked = static::unlockedKeysWindow($achiever);
+
+        if ($unlocked !== null) {
+            return ! isset($unlocked[static::key()]);
+        }
+
+        return ! static::isUnlocked($achiever);
     }
 
     /**

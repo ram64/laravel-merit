@@ -167,6 +167,40 @@ describe('round trips', function () {
         expect($queries)->toBe(2 * count(BATCH_KEYS));
     });
 
+    it('does not spend a lookup per secret achievement', function () {
+        // The regression: the secret gate asked isUnlocked() per secret, which
+        // on this driver is a query each, and a page carrying a few of them
+        // came out worse than the hand-rolled batch this method replaced.
+        $user = createUser();
+
+        $keys = [...BATCH_KEYS, 'batch_secret'];
+        AchievementTracker::getDisplayTextMany($user, $keys);
+
+        $queries = countQueries(fn () => AchievementTracker::getDisplayTextMany($user, $keys));
+
+        // One for the text, one for the unlocked set behind the gate.
+        expect($queries)->toBe(2);
+    });
+
+    it('costs nothing extra when the batch holds no secrets', function () {
+        $user = createUser();
+
+        AchievementTracker::getDisplayTextMany($user, BATCH_KEYS);
+
+        expect(countQueries(fn () => AchievementTracker::getDisplayTextMany($user, BATCH_KEYS)))->toBe(1);
+    });
+
+    it('holds at one lookup however many secrets are in the batch', function () {
+        useAchievements('Secret');
+
+        $user = createUser();
+
+        $keys = ['hidden_gem', 'open_book'];
+        AchievementTracker::getDisplayTextMany($user, $keys);
+
+        expect(countQueries(fn () => AchievementTracker::getDisplayTextMany($user, $keys)))->toBe(2);
+    });
+
     it('warms the cache on the cold path so the next call is all hits', function () {
         $user = createUser();
 

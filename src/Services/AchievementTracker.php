@@ -56,12 +56,19 @@ class AchievementTracker
         // One query for the achiever's unlocked keys, rather than one exists()
         // per prerequisite per achievement. Unlocks made below are fed back in
         // so a chain still completes in this single pass.
-        AchievementDefinition::primeUnlockedKeys($achiever);
+        $opened = ! AchievementDefinition::hasUnlockedKeysWindow($achiever);
+
+        if ($opened) {
+            AchievementDefinition::primeUnlockedKeys($achiever);
+        }
 
         try {
             static::processAchievements($achiever, $achievements);
         } finally {
-            AchievementDefinition::flushUnlockedKeys($achiever);
+            // Only close a window this call opened; a caller above may own one.
+            if ($opened) {
+                AchievementDefinition::flushUnlockedKeys($achiever);
+            }
         }
 
         static::debug('Achievement check processing completed');
@@ -619,6 +626,45 @@ class AchievementTracker
 
         $cached = Cache::many($cacheKeys);
 
+        // The secret gate asks whether the achiever has unlocked each secret
+        // achievement, which is a lookup apiece and would undo the batching on
+        // any page carrying a few of them. One window covers the lot. Pages
+        // with no secrets on them — the common case — skip it entirely.
+        $needsGate = false;
+
+        foreach ($definitions as $achievementClass) {
+            if ($achievementClass::isSecret()) {
+                $needsGate = true;
+
+                break;
+            }
+        }
+
+        $opened = $needsGate && ! AchievementDefinition::hasUnlockedKeysWindow($achiever);
+
+        if ($opened) {
+            AchievementDefinition::primeUnlockedKeys($achiever);
+        }
+
+        try {
+            return static::resolveDisplayText($achiever, $definitions, $cached, count($achievementKeys));
+        } finally {
+            // Only close a window this call opened; a caller above may own one.
+            if ($opened) {
+                AchievementDefinition::flushUnlockedKeys($achiever);
+            }
+        }
+    }
+
+    /**
+     * Pair the cached text with the definitions, filling in whatever missed.
+     *
+     * @param  array<string, class-string<BaseAchievementDefinition>>  $definitions
+     * @param  array<string, mixed>  $cached
+     * @return array<string, array{name: string, description: string}>
+     */
+    protected static function resolveDisplayText(Model $achiever, array $definitions, array $cached, int $requested): array
+    {
         $display = [];
         $missed = 0;
 
@@ -655,7 +701,7 @@ class AchievementTracker
 
         static::debug('Batch display text read', [
             'achiever_id' => $achiever->getKey(),
-            'requested' => count($achievementKeys),
+            'requested' => $requested,
             'resolved' => count($display),
             'cold' => $missed,
         ]);
