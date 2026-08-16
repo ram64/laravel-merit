@@ -24,7 +24,7 @@ class AchievementTracker
     public static function check($achiever)
     {
         static::debug('Starting achievement check', [
-            'achiever_id' => $achiever->id,
+            'achiever_id' => $achiever->getKey(),
             'achiever_type' => get_class($achiever),
             'queue_enabled' => config('merit.queue_achievements', true),
         ]);
@@ -45,7 +45,7 @@ class AchievementTracker
         $achievements = static::getAllAchievements();
 
         static::debug('Processing achievement check', [
-            'achiever_id' => $achiever->id,
+            'achiever_id' => $achiever->getKey(),
             'achiever_type' => get_class($achiever),
             'total_achievements' => count($achievements),
         ]);
@@ -55,7 +55,7 @@ class AchievementTracker
 
             static::debug("Checking achievement: {$achievementKey}", [
                 'achievement_class' => $achievementClass,
-                'achiever_id' => $achiever->id,
+                'achiever_id' => $achiever->getKey(),
             ]);
 
             // Skip if prerequisites not met
@@ -83,7 +83,7 @@ class AchievementTracker
 
             $record = AchieverAchievement::firstOrCreate(
                 [
-                    'achiever_id' => $achiever->id,
+                    'achiever_id' => $achiever->getKey(),
                     'achiever_type' => get_class($achiever),
                     'achievement_key' => $achievementClass::key(),
                 ],
@@ -156,7 +156,7 @@ class AchievementTracker
     {
         static::debug('Manually awarding achievement', [
             'achievement' => $achievementKey,
-            'achiever_id' => $achiever->id,
+            'achiever_id' => $achiever->getKey(),
             'achiever_type' => get_class($achiever),
         ]);
 
@@ -169,7 +169,7 @@ class AchievementTracker
 
         $record = AchieverAchievement::firstOrCreate(
             [
-                'achiever_id' => $achiever->id,
+                'achiever_id' => $achiever->getKey(),
                 'achiever_type' => get_class($achiever),
                 'achievement_key' => $achievementKey,
             ],
@@ -224,7 +224,7 @@ class AchievementTracker
     {
         static::debug('Incrementing achievement progress', [
             'achievement' => $achievementKey,
-            'achiever_id' => $achiever->id,
+            'achiever_id' => $achiever->getKey(),
             'amount' => $amount,
         ]);
 
@@ -244,7 +244,7 @@ class AchievementTracker
 
         $record = AchieverAchievement::firstOrCreate(
             [
-                'achiever_id' => $achiever->id,
+                'achiever_id' => $achiever->getKey(),
                 'achiever_type' => get_class($achiever),
                 'achievement_key' => $achievementKey,
             ],
@@ -561,7 +561,7 @@ class AchievementTracker
         if ($cached !== null) {
             static::debug('Retrieved achievement display from cache', [
                 'achievement' => $achievementKey,
-                'achiever_id' => $achiever->id,
+                'achiever_id' => $achiever->getKey(),
             ]);
 
             return $cached;
@@ -594,7 +594,7 @@ class AchievementTracker
 
         static::debug('Cached achievement display data', [
             'achievement' => $achievementKey,
-            'achiever_id' => $achiever->id,
+            'achiever_id' => $achiever->getKey(),
             'cache_duration' => $cacheDuration,
         ]);
 
@@ -649,7 +649,7 @@ class AchievementTracker
      */
     protected static function getUserCacheKey($achiever): string
     {
-        return 'merit:user:'.get_class($achiever).':'.$achiever->id;
+        return 'merit:user:'.get_class($achiever).':'.$achiever->getKey();
     }
 
     /**
@@ -657,7 +657,7 @@ class AchievementTracker
      */
     protected static function getDisplayCacheKey($achiever, string $achievementKey): string
     {
-        return 'merit:display:'.get_class($achiever).':'.$achiever->id.':'.$achievementKey;
+        return 'merit:display:'.get_class($achiever).':'.$achiever->getKey().':'.$achievementKey;
     }
 
     /**
@@ -665,7 +665,7 @@ class AchievementTracker
      */
     protected static function getNameCacheKey($achiever, string $achievementKey): string
     {
-        return 'merit:name:'.get_class($achiever).':'.$achiever->id.':'.$achievementKey;
+        return 'merit:name:'.get_class($achiever).':'.$achiever->getKey().':'.$achievementKey;
     }
 
     /**
@@ -673,7 +673,7 @@ class AchievementTracker
      */
     protected static function getDescriptionCacheKey($achiever, string $achievementKey): string
     {
-        return 'merit:description:'.get_class($achiever).':'.$achiever->id.':'.$achievementKey;
+        return 'merit:description:'.get_class($achiever).':'.$achiever->getKey().':'.$achievementKey;
     }
 
     /**
@@ -683,7 +683,7 @@ class AchievementTracker
      */
     protected static function getRecordCacheKey($achiever, string $achievementKey): string
     {
-        return 'merit:record:'.get_class($achiever).':'.$achiever->id.':'.$achievementKey;
+        return 'merit:record:'.get_class($achiever).':'.$achiever->getKey().':'.$achievementKey;
     }
 
     /**
@@ -712,7 +712,7 @@ class AchievementTracker
         }
 
         static::debug('Cleared user achievement caches', [
-            'achiever_id' => $achiever->id,
+            'achiever_id' => $achiever->getKey(),
             'achiever_type' => get_class($achiever),
         ]);
     }

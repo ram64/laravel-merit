@@ -33,7 +33,7 @@ abstract class FixtureAchievement extends AchievementDefinition
      */
     public static function calculateCurrentProgress(Model $achiever): int
     {
-        return min((int) $achiever->points, static::goal());
+        return min((int) $achiever->getAttribute('points'), static::goal());
     }
 
     public static function qualifiesFor(Model $achiever): bool

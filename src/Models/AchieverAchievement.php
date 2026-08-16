@@ -3,7 +3,28 @@
 namespace Ram64\LaravelMerit\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
+/**
+ * The stored progress for one achievement and one achiever.
+ *
+ * The columns are declared here rather than inferred: the migrations ship as
+ * .php.stub files, so static analysis has no schema to read them from.
+ *
+ * @property int $id
+ * @property int|string $achiever_id
+ * @property string $achiever_type
+ * @property string $achievement_key
+ * @property int $progress
+ * @property int $goal
+ * @property string $status
+ * @property array<string, mixed>|null $metadata
+ * @property Carbon|string|null $started_at
+ * @property Carbon|string|null $completed_at
+ * @property Carbon|null $unlocked_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ */
 class AchieverAchievement extends Model
 {
     protected $table;
@@ -11,7 +32,7 @@ class AchieverAchievement extends Model
     /**
      * Fillable attributes for the model.
      *
-     * @var array
+     * @var list<string>
      */
     protected $fillable = [
         'achiever_id',
@@ -29,7 +50,7 @@ class AchieverAchievement extends Model
     /**
      * Casts for the model attributes.
      *
-     * @var array
+     * @var array<string, string>
      */
     protected $casts = [
         'metadata' => 'array',
@@ -50,7 +71,7 @@ class AchieverAchievement extends Model
     /**
      * Get the Achiever for this Achievement.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\MorphTo<Model, AchieverAchievement>
+     * @return \Illuminate\Database\Eloquent\Relations\MorphTo<Model, $this>
      */
     public function achiever()
     {
@@ -77,7 +98,6 @@ class AchieverAchievement extends Model
     /**
      * Increment progress towards the achievement goal.
      *
-     * @param  mixed  $achiever
      * @return void
      */
     public function incrementProgress(int $amount = 1, ?Model $achiever = null)

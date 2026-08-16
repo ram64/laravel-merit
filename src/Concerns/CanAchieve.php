@@ -39,7 +39,7 @@ trait CanAchieve
         // fall through Model::__call and throw.
         $customCacheKey = method_exists($this, 'cacheKey') ? $this->cacheKey() : null;
 
-        Cache::forget($customCacheKey ?? "achievements_{$this->id}");
+        Cache::forget($customCacheKey ?? "achievements_{$this->getKey()}");
     }
 
     /**

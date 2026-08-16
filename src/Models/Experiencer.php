@@ -4,7 +4,24 @@ namespace Ram64\LaravelMerit\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * The experience and level held by one experiencer.
+ *
+ * Columns are declared here because the migrations ship as .php.stub files,
+ * so static analysis has no schema to read them from.
+ *
+ * @property int $id
+ * @property int|string $experiencer_id
+ * @property string $experiencer_type
+ * @property int $experience
+ * @property int $level
+ * @property array<string, mixed>|null $metadata
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read int $current_level
+ */
 class Experiencer extends Model
 {
     protected $table;
@@ -12,7 +29,7 @@ class Experiencer extends Model
     /**
      * Fillable attributes for the model.
      *
-     * @var array
+     * @var list<string>
      */
     protected $fillable = [
         'experiencer_id',
@@ -25,7 +42,7 @@ class Experiencer extends Model
     /**
      * Casts for the model attributes.
      *
-     * @var array
+     * @var array<string, string>
      */
     protected $casts = [
         'experience' => 'integer',
@@ -127,7 +144,7 @@ class Experiencer extends Model
     protected function evaluateFormula(string $formula, int $level): int
     {
         // Simple formula evaluation - replace $level with actual value
-        $expression = str_replace('$level', $level, $formula);
+        $expression = str_replace('$level', (string) $level, $formula);
 
         // Use eval for simple expressions (could be improved with a proper expression parser)
         return (int) eval("return $expression;");

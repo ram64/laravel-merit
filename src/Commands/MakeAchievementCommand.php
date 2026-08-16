@@ -83,11 +83,8 @@ class MakeAchievementCommand extends GeneratorCommand
             $prerequisiteValue = 'null';
         } elseif (is_string($prerequisite)) {
             $prerequisiteValue = "'{$prerequisite}'";
-        } elseif (is_array($prerequisite)) {
-            $prerequisiteArray = "['".implode("', '", $prerequisite)."']";
-            $prerequisiteValue = $prerequisiteArray;
         } else {
-            $prerequisiteValue = 'null';
+            $prerequisiteValue = "['".implode("', '", $prerequisite)."']";
         }
         $stub = str_replace('return null;', "return {$prerequisiteValue};", $stub);
 

@@ -4,6 +4,7 @@ namespace Ram64\LaravelMerit\Services;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Ram64\LaravelMerit\Contracts\HasExperience;
 use Ram64\LaravelMerit\Models\Experiencer;
 
 class ExperienceManager
@@ -15,6 +16,7 @@ class ExperienceManager
     {
         static::ensureUsesExperiencerTrait($experiencer);
 
+        /** @var Model&HasExperience $experiencer */
         return $experiencer->gainExperience($amount, $reason, $metadata);
     }
 
@@ -25,6 +27,7 @@ class ExperienceManager
     {
         static::ensureUsesExperiencerTrait($experiencer);
 
+        /** @var Model&HasExperience $experiencer */
         return $experiencer->loseExperience($amount, $reason, $metadata);
     }
 
@@ -35,6 +38,7 @@ class ExperienceManager
     {
         static::ensureUsesExperiencerTrait($experiencer);
 
+        /** @var Model&HasExperience $experiencer */
         return $experiencer->setExperience($amount, $reason, $metadata);
     }
 
@@ -45,6 +49,7 @@ class ExperienceManager
     {
         static::ensureUsesExperiencerTrait($experiencer);
 
+        /** @var Model&HasExperience $experiencer */
         return $experiencer->getCachedExperienceData();
     }
 
@@ -55,6 +60,7 @@ class ExperienceManager
     {
         static::ensureUsesExperiencerTrait($experiencer);
 
+        /** @var Model&HasExperience $experiencer */
         return $experiencer->experienceLogs()->limit($limit)->get();
     }
 
@@ -122,7 +128,7 @@ class ExperienceManager
     protected static function evaluateFormula(string $formula, int $level): int
     {
         // Simple formula evaluation - replace $level with actual value
-        $expression = str_replace('$level', $level, $formula);
+        $expression = str_replace('$level', (string) $level, $formula);
 
         // Use eval for simple expressions (could be improved with a proper expression parser)
         return (int) eval("return {$expression};");
@@ -134,6 +140,8 @@ class ExperienceManager
     public static function clearCache(Model $experiencer): void
     {
         static::ensureUsesExperiencerTrait($experiencer);
+
+        /** @var Model&HasExperience $experiencer */
         $experiencer->clearExperienceCaches();
     }
 

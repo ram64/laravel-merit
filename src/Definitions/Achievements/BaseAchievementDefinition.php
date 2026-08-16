@@ -31,7 +31,7 @@ abstract class BaseAchievementDefinition
             return static::name(null);
         }
 
-        $cacheKey = 'merit:name:'.get_class($achiever).':'.$achiever->id.':'.static::key();
+        $cacheKey = 'merit:name:'.get_class($achiever).':'.$achiever->getKey().':'.static::key();
 
         return Cache::remember($cacheKey, config('merit.cache_ttl', 10) * 60, function () use ($achiever) {
             return static::name($achiever);
@@ -52,7 +52,7 @@ abstract class BaseAchievementDefinition
             return static::description(null);
         }
 
-        $cacheKey = 'merit:description:'.get_class($achiever).':'.$achiever->id.':'.static::key();
+        $cacheKey = 'merit:description:'.get_class($achiever).':'.$achiever->getKey().':'.static::key();
 
         return Cache::remember($cacheKey, config('merit.cache_ttl', 10) * 60, function () use ($achiever) {
             return static::description($achiever);
@@ -128,10 +128,10 @@ abstract class BaseAchievementDefinition
      */
     public static function getAchievementRecord(Model $achiever): ?AchieverAchievement
     {
-        $cacheKey = 'merit:record:'.get_class($achiever).':'.$achiever->id.':'.static::key();
+        $cacheKey = 'merit:record:'.get_class($achiever).':'.$achiever->getKey().':'.static::key();
 
         return Cache::remember($cacheKey, config('merit.cache_ttl', 10) * 60, function () use ($achiever) {
-            return AchieverAchievement::where('achiever_id', $achiever->id)
+            return AchieverAchievement::where('achiever_id', $achiever->getKey())
                 ->where('achiever_type', get_class($achiever))
                 ->where('achievement_key', static::key())
                 ->first();

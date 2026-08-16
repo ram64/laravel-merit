@@ -4,7 +4,28 @@ namespace Ram64\LaravelMerit\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * One recorded experience or level change.
+ *
+ * Columns are declared here because the migrations ship as .php.stub files,
+ * so static analysis has no schema to read them from.
+ *
+ * @property int $id
+ * @property int|string $experiencer_id
+ * @property string $experiencer_type
+ * @property int $experience_before
+ * @property int $experience_after
+ * @property int $level_before
+ * @property int|null $level_after
+ * @property string|null $reason
+ * @property array<string, mixed>|null $metadata
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read int $experience_change
+ * @property-read string $event_type
+ */
 class ExperienceLog extends Model
 {
     protected $table;
@@ -12,7 +33,7 @@ class ExperienceLog extends Model
     /**
      * Fillable attributes for the model.
      *
-     * @var array
+     * @var list<string>
      */
     protected $fillable = [
         'experiencer_id',
@@ -28,7 +49,7 @@ class ExperienceLog extends Model
     /**
      * Casts for the model attributes.
      *
-     * @var array
+     * @var array<string, string>
      */
     protected $casts = [
         'experience_before' => 'integer',

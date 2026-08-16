@@ -2,6 +2,7 @@
 
 namespace Ram64\LaravelMerit\Definitions\Achievements;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Ram64\LaravelMerit\Models\AchieverAchievement;
 
@@ -48,7 +49,7 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
             // Extract key from class name if it's a class
             $prerequisiteKey = static::extractAchievementKey($prerequisite);
 
-            $isUnlocked = AchieverAchievement::where('achiever_id', $achiever->id)
+            $isUnlocked = AchieverAchievement::where('achiever_id', $achiever->getKey())
                 ->where('achiever_type', get_class($achiever))
                 ->where('achievement_key', $prerequisiteKey)
                 ->whereNotNull('unlocked_at')
@@ -69,11 +70,11 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
     {
         // If it's a class name (contains backslashes or ends with Achievement)
         if (str_contains($prerequisite, '\\') || class_exists($prerequisite)) {
-            // Check if it's a valid AchievementDefinition class
+            // Check if it's a valid AchievementDefinition class. key() is
+            // abstract on the base, so a subclass always has it.
             if (
                 class_exists($prerequisite) &&
-                is_subclass_of($prerequisite, BaseAchievementDefinition::class) &&
-                method_exists($prerequisite, 'key')
+                is_subclass_of($prerequisite, BaseAchievementDefinition::class)
             ) {
                 return $prerequisite::key();
             }
@@ -122,7 +123,15 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
      */
     protected static function createdWithin(Model $achiever, string $period): bool
     {
-        return $achiever->created_at->gt(now()->sub($period));
+        $createdAt = $achiever->getAttribute($achiever->getCreatedAtColumn());
+
+        // A model without timestamps has no created_at at all, which used to
+        // be a fatal call on null rather than a false.
+        if (! $createdAt instanceof CarbonInterface) {
+            return false;
+        }
+
+        return $createdAt->gt(now()->sub($period));
     }
 
     /**

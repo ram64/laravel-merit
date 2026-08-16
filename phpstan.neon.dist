@@ -1,12 +1,35 @@
-includes:
-    - phpstan-baseline.neon
-
 parameters:
     level: 5
     paths:
         - src
         - config
         - database
+        # tests/ is analysed so the traits get analysed at all: PHPStan skips a
+        # trait no analysed class uses, which meant CanAchieve and CanExperience
+        # were never looked at.
+        - tests
     tmpDir: build/phpstan
     checkOctaneCompatibility: true
     checkModelProperties: true
+
+    # There is deliberately no baseline. Everything below is a false positive
+    # with a stated reason, so a new error fails the run rather than being
+    # appended to a file nobody reads.
+    ignoreErrors:
+        # config/merit.php is the package's publishable config template. env()
+        # is exactly what belongs in a config file; larastan's rule fires only
+        # because it cannot tell this is a config directory without an app.
+        -
+            identifier: larastan.noEnvCallsOutsideOfConfig
+            path: config/merit.php
+
+        # The default achiever model is the consuming application's User, which
+        # by definition does not exist inside this package.
+        -
+            message: '#^Class App\\Models\\User not found\.$#'
+            path: config/merit.php
+
+        # Pest's arch DSL is not statically typed.
+        -
+            message: '#^Call to an undefined method Pest\\PendingCalls\\TestCall::expect\(\)\.$#'
+            path: tests/ArchTest.php

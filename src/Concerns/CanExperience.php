@@ -2,6 +2,7 @@
 
 namespace Ram64\LaravelMerit\Concerns;
 
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Support\Facades\Cache;
 use Ram64\LaravelMerit\Events\ExperienceGained;
 use Ram64\LaravelMerit\Events\ExperienceLost;
@@ -13,8 +14,10 @@ trait CanExperience
 {
     /**
      * Get the experiencer record for this model.
+     *
+     * @return MorphOne<Experiencer, $this>
      */
-    public function experiencer()
+    public function experiencer(): MorphOne
     {
         return $this->morphOne(Experiencer::class, 'experiencer');
     }
@@ -91,7 +94,7 @@ trait CanExperience
         $experienceLog = null;
         if (config('merit.experience.logging_enabled', true)) {
             $experienceLog = ExperienceLog::create([
-                'experiencer_id' => $this->id,
+                'experiencer_id' => $this->getKey(),
                 'experiencer_type' => get_class($this),
                 'experience_before' => $oldExperience,
                 'experience_after' => $newExperience,
@@ -143,7 +146,7 @@ trait CanExperience
         $experienceLog = null;
         if (config('merit.experience.logging_enabled', true)) {
             $experienceLog = ExperienceLog::create([
-                'experiencer_id' => $this->id,
+                'experiencer_id' => $this->getKey(),
                 'experiencer_type' => get_class($this),
                 'experience_before' => $oldExperience,
                 'experience_after' => $newExperience,
@@ -223,7 +226,7 @@ trait CanExperience
         $experienceLog = null;
         if (config('merit.experience.logging_enabled', true)) {
             $experienceLog = ExperienceLog::create([
-                'experiencer_id' => $this->id,
+                'experiencer_id' => $this->getKey(),
                 'experiencer_type' => get_class($this),
                 'experience_before' => $currentExperience,
                 'experience_after' => $newExperience,
@@ -278,7 +281,7 @@ trait CanExperience
      */
     public function experienceLogs()
     {
-        return ExperienceLog::where('experiencer_id', $this->id)
+        return ExperienceLog::where('experiencer_id', $this->getKey())
             ->where('experiencer_type', get_class($this))
             ->orderBy('created_at', 'desc');
     }
@@ -297,7 +300,7 @@ trait CanExperience
      */
     protected function experienceCacheKey(): string
     {
-        return "merit:experience:{$this->id}:".get_class($this);
+        return "merit:experience:{$this->getKey()}:".get_class($this);
     }
 
     /**
