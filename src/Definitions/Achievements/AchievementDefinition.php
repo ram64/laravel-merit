@@ -34,7 +34,7 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
     {
         $prerequisites = static::prerequisite();
 
-        if (!$prerequisites) {
+        if (! $prerequisites) {
             return true;
         }
 
@@ -54,7 +54,7 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
                 ->whereNotNull('unlocked_at')
                 ->exists();
 
-            if (!$isUnlocked) {
+            if (! $isUnlocked) {
                 return false;
             }
         }

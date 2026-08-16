@@ -130,7 +130,7 @@ class Experiencer extends Model
         $expression = str_replace('$level', $level, $formula);
 
         // Use eval for simple expressions (could be improved with a proper expression parser)
-        return (int) eval ("return $expression;");
+        return (int) eval("return $expression;");
     }
 
     /**
@@ -143,10 +143,12 @@ class Experiencer extends Model
 
         if ($method === 'dynamic') {
             $formula = config('merit.experience.level_formula', '50 * $level * $level');
+
             return $this->evaluateFormula($formula, $nextLevel);
         }
 
         $thresholds = config('merit.experience.level_thresholds', []);
+
         return $thresholds[$nextLevel] ?? PHP_INT_MAX;
     }
 
@@ -177,10 +179,12 @@ class Experiencer extends Model
 
         if ($method === 'dynamic') {
             $formula = config('merit.experience.level_formula', '50 * $level * $level');
+
             return $this->evaluateFormula($formula, $level);
         }
 
         $thresholds = config('merit.experience.level_thresholds', []);
+
         return $thresholds[$level] ?? 0;
     }
 }

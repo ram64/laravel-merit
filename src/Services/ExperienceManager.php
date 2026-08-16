@@ -14,6 +14,7 @@ class ExperienceManager
     public static function awardExperience(Model $experiencer, int $amount, ?string $reason = null, array $metadata = []): bool
     {
         static::ensureUsesExperiencerTrait($experiencer);
+
         return $experiencer->gainExperience($amount, $reason, $metadata);
     }
 
@@ -23,6 +24,7 @@ class ExperienceManager
     public static function deductExperience(Model $experiencer, int $amount, ?string $reason = null, array $metadata = []): bool
     {
         static::ensureUsesExperiencerTrait($experiencer);
+
         return $experiencer->loseExperience($amount, $reason, $metadata);
     }
 
@@ -32,6 +34,7 @@ class ExperienceManager
     public static function setExperience(Model $experiencer, int $amount, ?string $reason = null, array $metadata = []): bool
     {
         static::ensureUsesExperiencerTrait($experiencer);
+
         return $experiencer->setExperience($amount, $reason, $metadata);
     }
 
@@ -41,6 +44,7 @@ class ExperienceManager
     public static function getExperienceData(Model $experiencer): array
     {
         static::ensureUsesExperiencerTrait($experiencer);
+
         return $experiencer->getCachedExperienceData();
     }
 
@@ -50,6 +54,7 @@ class ExperienceManager
     public static function getExperienceLogs(Model $experiencer, int $limit = 50)
     {
         static::ensureUsesExperiencerTrait($experiencer);
+
         return $experiencer->experienceLogs()->limit($limit)->get();
     }
 
@@ -58,7 +63,8 @@ class ExperienceManager
      */
     public static function calculateLevel(int $experience): int
     {
-        $experiencer = new Experiencer();
+        $experiencer = new Experiencer;
+
         return $experiencer->calculateLevel($experience);
     }
 
@@ -67,7 +73,8 @@ class ExperienceManager
      */
     public static function getExperienceForLevel(int $level): int
     {
-        $experiencer = new Experiencer();
+        $experiencer = new Experiencer;
+
         return $experiencer->getExperienceForLevel($level);
     }
 
@@ -101,7 +108,7 @@ class ExperienceManager
      */
     public static function getCachedLevelRequirements(?int $maxLevel = null): array
     {
-        $cacheKey = 'merit:level_requirements:' . ($maxLevel ?? 'default');
+        $cacheKey = 'merit:level_requirements:'.($maxLevel ?? 'default');
         $ttl = config('merit.experience.cache_ttl', 10);
 
         return Cache::remember($cacheKey, now()->addMinutes($ttl), function () use ($maxLevel) {
@@ -118,7 +125,7 @@ class ExperienceManager
         $expression = str_replace('$level', $level, $formula);
 
         // Use eval for simple expressions (could be improved with a proper expression parser)
-        return (int) eval ("return {$expression};");
+        return (int) eval("return {$expression};");
     }
 
     /**
@@ -193,9 +200,9 @@ class ExperienceManager
     protected static function ensureUsesExperiencerTrait(Model $experiencer): void
     {
         if (
-            !method_exists($experiencer, 'gainExperience') ||
-            !method_exists($experiencer, 'loseExperience') ||
-            !method_exists($experiencer, 'getExperience')
+            ! method_exists($experiencer, 'gainExperience') ||
+            ! method_exists($experiencer, 'loseExperience') ||
+            ! method_exists($experiencer, 'getExperience')
         ) {
             throw new \InvalidArgumentException('Model must use the Experiencer trait');
         }

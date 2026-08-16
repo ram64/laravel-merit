@@ -6,8 +6,8 @@ use Illuminate\Support\Facades\Cache;
 use Ram64\LaravelMerit\Events\ExperienceGained;
 use Ram64\LaravelMerit\Events\ExperienceLost;
 use Ram64\LaravelMerit\Events\LevelledUp;
-use Ram64\LaravelMerit\Models\Experiencer;
 use Ram64\LaravelMerit\Models\ExperienceLog;
+use Ram64\LaravelMerit\Models\Experiencer;
 
 trait CanExperience
 {
@@ -24,7 +24,17 @@ trait CanExperience
      */
     protected function getExperiencer(): Experiencer
     {
-        return $this->experiencer ?? $this->experiencer()->firstOrCreate([
+        // Use an eager-loaded relation when there is one, but never read the
+        // accessor otherwise: on a model whose row does not exist yet it
+        // caches a null that every later call would then serve.
+        if ($this->relationLoaded('experiencer') && $this->experiencer !== null) {
+            return $this->experiencer;
+        }
+
+        // Match on the relationship alone and pass the starting values as
+        // defaults. Matching on experience/level as well would miss the
+        // existing row as soon as it moved off 0/1, and insert a duplicate.
+        return $this->experiencer()->firstOrCreate([], [
             'experience' => 0,
             'level' => 1,
         ]);
@@ -186,7 +196,7 @@ trait CanExperience
         $allowDecrease = config('merit.experience.allow_level_decrease', false);
 
         // If level decreases not allowed and target level is lower, keep current level
-        if (!$allowDecrease && $targetLevel < $currentLevel) {
+        if (! $allowDecrease && $targetLevel < $currentLevel) {
             return true; // No change needed
         }
 
@@ -222,7 +232,7 @@ trait CanExperience
                 'reason' => $reason,
                 'metadata' => array_merge($metadata, [
                     'manual_level_set' => true,
-                    'level_decrease_allowed' => $allowDecrease
+                    'level_decrease_allowed' => $allowDecrease,
                 ]),
             ]);
         }
@@ -256,23 +266,11 @@ trait CanExperience
      */
     protected function handleLevelUp(int $oldLevel, int $newLevel, ?string $reason, ?ExperienceLog $experienceLog = null): void
     {
-        // Log the level up if enabled
-        $levelUpLog = null;
-        if (config('merit.experience.logging_enabled', true)) {
-            $levelUpLog = ExperienceLog::create([
-                'experiencer_id' => $this->id,
-                'experiencer_type' => get_class($this),
-                'experience_before' => $this->getExperience(),
-                'experience_after' => $this->getExperience(),
-                'level_before' => $oldLevel,
-                'level_after' => $newLevel,
-                'reason' => $reason,
-                'metadata' => ['level_up' => true],
-            ]);
-        }
-
-        // Fire the levelled up event
-        LevelledUp::dispatch($levelUpLog ?? $experienceLog, $this, $oldLevel, $newLevel, $reason);
+        // No log row of its own. The change that caused the level up already
+        // wrote one carrying level_before/level_after, and a second row would
+        // have a single level up counted twice by the levelUps() scope and by
+        // getStatistics(). It is null when logging is disabled.
+        LevelledUp::dispatch($experienceLog, $this, $oldLevel, $newLevel, $reason);
     }
 
     /**
@@ -299,7 +297,7 @@ trait CanExperience
      */
     protected function experienceCacheKey(): string
     {
-        return "merit:experience:{$this->id}:" . get_class($this);
+        return "merit:experience:{$this->id}:".get_class($this);
     }
 
     /**

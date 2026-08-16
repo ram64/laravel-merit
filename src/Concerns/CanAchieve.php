@@ -34,8 +34,12 @@ trait CanAchieve
         // Clear the new comprehensive caches
         AchievementTracker::clearUserCache($this);
 
-        // Keep backward compatibility with custom cache keys
-        Cache::forget($this->cacheKey() ?? "achievements_{$this->id}");
+        // Keep backward compatibility with custom cache keys. Achiever models
+        // are not required to define cacheKey(), and calling it blind would
+        // fall through Model::__call and throw.
+        $customCacheKey = method_exists($this, 'cacheKey') ? $this->cacheKey() : null;
+
+        Cache::forget($customCacheKey ?? "achievements_{$this->id}");
     }
 
     /**

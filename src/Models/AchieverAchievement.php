@@ -58,18 +58,20 @@ class AchieverAchievement extends Model
     }
 
     /**
-     * Dispatch an event, either queued or synchronously.
+     * Dispatch an achievement event.
+     *
+     * Events go to the event dispatcher, not the command bus: dispatch() and
+     * dispatch_sync() treat their argument as a job and look for a handle() on
+     * it, which an event does not have. Whether the work happens now or on a
+     * queue is a listener concern — a listener marked ShouldQueue is queued by
+     * the dispatcher either way.
      *
      * @param  mixed  $event
      * @return void
      */
     protected function dispatchEvent($event)
     {
-        if (config('merit.queue_events', false)) {
-            dispatch($event);
-        } else {
-            dispatch_sync($event);
-        }
+        event($event);
     }
 
     /**

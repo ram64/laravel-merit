@@ -2,9 +2,9 @@
 
 namespace Ram64\LaravelMerit\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
 use Ram64\LaravelMerit\Events\AchievementCompleted;
 use Ram64\LaravelMerit\Events\AchievementProgressed;
 use Ram64\LaravelMerit\Events\AchievementStarted;
@@ -26,7 +26,7 @@ class AchievementTracker
         static::debug('Starting achievement check', [
             'achiever_id' => $achiever->id,
             'achiever_type' => get_class($achiever),
-            'queue_enabled' => config('merit.queue_achievements', true)
+            'queue_enabled' => config('merit.queue_achievements', true),
         ]);
 
         if (config('merit.queue_achievements', true)) {
@@ -47,7 +47,7 @@ class AchievementTracker
         static::debug('Processing achievement check', [
             'achiever_id' => $achiever->id,
             'achiever_type' => get_class($achiever),
-            'total_achievements' => count($achievements)
+            'total_achievements' => count($achievements),
         ]);
 
         foreach ($achievements as $achievementClass) {
@@ -55,27 +55,29 @@ class AchievementTracker
 
             static::debug("Checking achievement: {$achievementKey}", [
                 'achievement_class' => $achievementClass,
-                'achiever_id' => $achiever->id
+                'achiever_id' => $achiever->id,
             ]);
 
             // Skip if prerequisites not met
-            if (!$achievementClass::canStart($achiever)) {
+            if (! $achievementClass::canStart($achiever)) {
                 static::debug("Prerequisites not met for achievement: {$achievementKey}");
+
                 continue;
             }
 
             // Get current progress from achievement logic
             $currentProgress = $achievementClass::calculateCurrentProgress($achiever);
 
-            static::debug("Current progress calculated", [
+            static::debug('Current progress calculated', [
                 'achievement' => $achievementKey,
                 'progress' => $currentProgress,
-                'goal' => $achievementClass::goal()
+                'goal' => $achievementClass::goal(),
             ]);
 
             // Skip if no progress at all - don't create records for 0 progress
             if ($currentProgress <= 0) {
                 static::debug("No progress for achievement: {$achievementKey}");
+
                 continue;
             }
 
@@ -101,31 +103,29 @@ class AchievementTracker
             // Skip if already unlocked
             if ($record->unlocked_at !== null) {
                 static::debug("Achievement already unlocked: {$achievementKey}");
+
                 continue;
             }
 
             $oldProgress = $record->progress;
             $record->progress = min($currentProgress, $record->goal);
+            $changed = false;
 
             // Fire progress event if progress changed
             if ($record->progress > $oldProgress) {
-                static::debug("Achievement progress updated", [
+                static::debug('Achievement progress updated', [
                     'achievement' => $achievementKey,
                     'old_progress' => $oldProgress,
                     'new_progress' => $record->progress,
-                    'goal' => $record->goal
+                    'goal' => $record->goal,
                 ]);
                 event(new AchievementProgressed($record, $achiever, $record->progress));
-
-                // Clear display cache when progress changes
-                Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
-                Cache::forget(static::getNameCacheKey($achiever, $achievementKey));
-                Cache::forget(static::getDescriptionCacheKey($achiever, $achievementKey));
+                $changed = true;
             }
 
             // Check if completed
             $wasCompleted = $record->completed_at !== null;
-            if ($record->progress >= $record->goal && !$wasCompleted) {
+            if ($record->progress >= $record->goal && ! $wasCompleted) {
                 static::debug("Achievement completed and unlocked: {$achievementKey}");
                 $record->completed_at = now();
                 event(new AchievementCompleted($record, $achiever));
@@ -133,14 +133,17 @@ class AchievementTracker
                 // Auto-unlock when completed
                 $record->unlocked_at = now();
                 event(new AchievementUnlocked($record, $achiever));
-
-                // Clear display cache when unlocked
-                Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
-                Cache::forget(static::getNameCacheKey($achiever, $achievementKey));
-                Cache::forget(static::getDescriptionCacheKey($achiever, $achievementKey));
+                $changed = true;
             }
 
             $record->save();
+
+            // Clear the caches once the new state is actually persisted, so a
+            // listener that read the record on the way through cannot leave a
+            // pre-save value behind.
+            if ($changed) {
+                static::forgetAchievementCaches($achiever, $achievementKey);
+            }
         }
 
         static::debug('Achievement check processing completed');
@@ -151,15 +154,15 @@ class AchievementTracker
      */
     public static function award($achiever, string $achievementKey)
     {
-        static::debug("Manually awarding achievement", [
+        static::debug('Manually awarding achievement', [
             'achievement' => $achievementKey,
             'achiever_id' => $achiever->id,
-            'achiever_type' => get_class($achiever)
+            'achiever_type' => get_class($achiever),
         ]);
 
         $achievementClass = static::getAchievement($achievementKey);
 
-        if (!$achievementClass) {
+        if (! $achievementClass) {
             static::debug("Achievement not found: {$achievementKey}");
             throw new \InvalidArgumentException("Achievement '{$achievementKey}' not found");
         }
@@ -209,9 +212,7 @@ class AchievementTracker
         event(new AchievementUnlocked($record, $achiever));
 
         // Clear cache when manually awarded
-        Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
-        Cache::forget(static::getNameCacheKey($achiever, $achievementKey));
-        Cache::forget(static::getDescriptionCacheKey($achiever, $achievementKey));
+        static::forgetAchievementCaches($achiever, $achievementKey);
 
         return $record;
     }
@@ -221,22 +222,23 @@ class AchievementTracker
      */
     public static function increment($achiever, string $achievementKey, int $amount = 1)
     {
-        static::debug("Incrementing achievement progress", [
+        static::debug('Incrementing achievement progress', [
             'achievement' => $achievementKey,
             'achiever_id' => $achiever->id,
-            'amount' => $amount
+            'amount' => $amount,
         ]);
 
         $achievementClass = static::getAchievement($achievementKey);
 
-        if (!$achievementClass) {
+        if (! $achievementClass) {
             static::debug("Achievement not found: {$achievementKey}");
             throw new \InvalidArgumentException("Achievement '{$achievementKey}' not found");
         }
 
         // Check if prerequisites are met
-        if (!$achievementClass::canStart($achiever)) {
+        if (! $achievementClass::canStart($achiever)) {
             static::debug("Prerequisites not met for increment: {$achievementKey}");
+
             return;
         }
 
@@ -273,7 +275,7 @@ class AchievementTracker
 
         // Check if completed
         $wasCompleted = $record->completed_at !== null;
-        if ($record->progress >= $record->goal && !$wasCompleted) {
+        if ($record->progress >= $record->goal && ! $wasCompleted) {
             $record->completed_at = now();
             event(new AchievementCompleted($record, $achiever));
 
@@ -286,9 +288,7 @@ class AchievementTracker
 
         // Clear cache when progress is incremented
         if ($record->progress > $oldProgress) {
-            Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
-            Cache::forget(static::getNameCacheKey($achiever, $achievementKey));
-            Cache::forget(static::getDescriptionCacheKey($achiever, $achievementKey));
+            static::forgetAchievementCaches($achiever, $achievementKey);
         }
 
         return $record;
@@ -319,11 +319,11 @@ class AchievementTracker
     {
         $className = static::getAchievement($key);
 
-        if (!$className) {
+        if (! $className) {
             return null;
         }
 
-        return new $className();
+        return new $className;
     }
 
     /**
@@ -370,7 +370,7 @@ class AchievementTracker
             $key = $achievementClass::key();
             $prerequisites = $achievementClass::prerequisite();
 
-            if (!$prerequisites) {
+            if (! $prerequisites) {
                 continue;
             }
 
@@ -401,7 +401,7 @@ class AchievementTracker
             }
         }
 
-        while (!empty($queue)) {
+        while (! empty($queue)) {
             $current = array_shift($queue);
             $result[] = $keyToClass[$current];
 
@@ -418,14 +418,15 @@ class AchievementTracker
         if (count($result) !== count($achievements)) {
             static::debug('Cycle detected in achievement prerequisites, falling back to unsorted order', [
                 'total_achievements' => count($achievements),
-                'sorted_count' => count($result)
+                'sorted_count' => count($result),
             ]);
+
             return $achievements; // Fallback to original order
         }
 
         static::debug('Achievements sorted topologically', [
             'total' => count($result),
-            'order' => array_map(fn($class) => $class::key(), $result)
+            'order' => array_map(fn ($class) => $class::key(), $result),
         ]);
 
         return $result;
@@ -477,6 +478,7 @@ class AchievementTracker
             static::$achievements = $cachedAchievements;
             static::$discovered = true;
             static::debug('Loaded achievements from cache', ['count' => count($cachedAchievements)]);
+
             return;
         }
 
@@ -485,12 +487,13 @@ class AchievementTracker
 
         static::debug('Starting achievement discovery', [
             'path' => $achievementPath,
-            'namespace' => $achievementNamespace
+            'namespace' => $achievementNamespace,
         ]);
 
-        if (!File::exists($achievementPath)) {
+        if (! File::exists($achievementPath)) {
             static::debug('Achievement path does not exist', ['path' => $achievementPath]);
             static::$discovered = true;
+
             return;
         }
 
@@ -502,7 +505,7 @@ class AchievementTracker
                 continue;
             }
 
-            $className = $achievementNamespace . str_replace(['/', '.php'], ['\\', ''], $file->getRelativePathname());
+            $className = $achievementNamespace.str_replace(['/', '.php'], ['\\', ''], $file->getRelativePathname());
 
             if (class_exists($className)) {
                 $reflection = new \ReflectionClass($className);
@@ -510,9 +513,10 @@ class AchievementTracker
                 // Skip abstract classes and classes that don't extend our base
                 if (
                     $reflection->isAbstract() ||
-                    !$reflection->isSubclassOf(\Ram64\LaravelMerit\Definitions\Achievements\BaseAchievementDefinition::class)
+                    ! $reflection->isSubclassOf(\Ram64\LaravelMerit\Definitions\Achievements\BaseAchievementDefinition::class)
                 ) {
                     static::debug('Skipping class (abstract or invalid base)', ['class' => $className]);
+
                     continue;
                 }
 
@@ -528,7 +532,7 @@ class AchievementTracker
 
         static::debug('Achievement discovery completed and cached', [
             'registered' => count(static::$achievements),
-            'cache_ttl_seconds' => static::getCacheTtl()
+            'cache_ttl_seconds' => static::getCacheTtl(),
         ]);
         static::$discovered = true;
     }
@@ -557,14 +561,15 @@ class AchievementTracker
         if ($cached !== null) {
             static::debug('Retrieved achievement display from cache', [
                 'achievement' => $achievementKey,
-                'achiever_id' => $achiever->id
+                'achiever_id' => $achiever->id,
             ]);
+
             return $cached;
         }
 
         $achievementClass = static::getAchievement($achievementKey);
 
-        if (!$achievementClass) {
+        if (! $achievementClass) {
             return [];
         }
 
@@ -590,13 +595,15 @@ class AchievementTracker
         static::debug('Cached achievement display data', [
             'achievement' => $achievementKey,
             'achiever_id' => $achiever->id,
-            'cache_duration' => $cacheDuration
+            'cache_duration' => $cacheDuration,
         ]);
 
         return $displayData;
-    }    /**
-         * Reset discovery (useful for testing)
-         */
+    }
+
+    /**
+     * Reset discovery (useful for testing)
+     */
     public static function resetDiscovery()
     {
         static::$achievements = [];
@@ -608,7 +615,7 @@ class AchievementTracker
      */
     protected static function debug(string $message, array $context = []): void
     {
-        if (!config('merit.debug.enabled', false)) {
+        if (! config('merit.debug.enabled', false)) {
             return;
         }
 
@@ -634,7 +641,7 @@ class AchievementTracker
         $path = config('merit.achievements_path', app_path('Achievements'));
         $namespace = config('merit.achievements_namespace', 'App\\Achievements\\');
 
-        return 'merit:achievements:discovery:' . md5($path . $namespace);
+        return 'merit:achievements:discovery:'.md5($path.$namespace);
     }
 
     /**
@@ -642,7 +649,7 @@ class AchievementTracker
      */
     protected static function getUserCacheKey($achiever): string
     {
-        return 'merit:user:' . get_class($achiever) . ':' . $achiever->id;
+        return 'merit:user:'.get_class($achiever).':'.$achiever->id;
     }
 
     /**
@@ -650,7 +657,7 @@ class AchievementTracker
      */
     protected static function getDisplayCacheKey($achiever, string $achievementKey): string
     {
-        return 'merit:display:' . get_class($achiever) . ':' . $achiever->id . ':' . $achievementKey;
+        return 'merit:display:'.get_class($achiever).':'.$achiever->id.':'.$achievementKey;
     }
 
     /**
@@ -658,7 +665,7 @@ class AchievementTracker
      */
     protected static function getNameCacheKey($achiever, string $achievementKey): string
     {
-        return 'merit:name:' . get_class($achiever) . ':' . $achiever->id . ':' . $achievementKey;
+        return 'merit:name:'.get_class($achiever).':'.$achiever->id.':'.$achievementKey;
     }
 
     /**
@@ -666,7 +673,28 @@ class AchievementTracker
      */
     protected static function getDescriptionCacheKey($achiever, string $achievementKey): string
     {
-        return 'merit:description:' . get_class($achiever) . ':' . $achiever->id . ':' . $achievementKey;
+        return 'merit:description:'.get_class($achiever).':'.$achiever->id.':'.$achievementKey;
+    }
+
+    /**
+     * Generate cache key for a stored achievement record
+     *
+     * Must match BaseAchievementDefinition::getAchievementRecord().
+     */
+    protected static function getRecordCacheKey($achiever, string $achievementKey): string
+    {
+        return 'merit:record:'.get_class($achiever).':'.$achiever->id.':'.$achievementKey;
+    }
+
+    /**
+     * Drop every per-achievement cache for one achiever
+     */
+    protected static function forgetAchievementCaches($achiever, string $achievementKey): void
+    {
+        Cache::forget(static::getDisplayCacheKey($achiever, $achievementKey));
+        Cache::forget(static::getNameCacheKey($achiever, $achievementKey));
+        Cache::forget(static::getDescriptionCacheKey($achiever, $achievementKey));
+        Cache::forget(static::getRecordCacheKey($achiever, $achievementKey));
     }
 
     /**
@@ -677,22 +705,15 @@ class AchievementTracker
         $userCacheKey = static::getUserCacheKey($achiever);
         Cache::forget($userCacheKey);
 
-        // Clear display caches for all achievements
+        // Clear display, name, description and record caches for all achievements
         $achievements = static::getAllAchievements();
         foreach ($achievements as $achievementClass) {
-            $displayKey = static::getDisplayCacheKey($achiever, $achievementClass::key());
-            Cache::forget($displayKey);
-
-            // Clear name and description caches
-            $nameKey = static::getNameCacheKey($achiever, $achievementClass::key());
-            $descriptionKey = static::getDescriptionCacheKey($achiever, $achievementClass::key());
-            Cache::forget($nameKey);
-            Cache::forget($descriptionKey);
+            static::forgetAchievementCaches($achiever, $achievementClass::key());
         }
 
         static::debug('Cleared user achievement caches', [
             'achiever_id' => $achiever->id,
-            'achiever_type' => get_class($achiever)
+            'achiever_type' => get_class($achiever),
         ]);
     }
 

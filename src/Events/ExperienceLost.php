@@ -20,7 +20,7 @@ class ExperienceLost implements ShouldQueue
 
     public $reason;
 
-    public function __construct(ExperienceLog $experienceLog, Model $experiencer, int $amount, ?string $reason = null)
+    public function __construct(?ExperienceLog $experienceLog, Model $experiencer, int $amount, ?string $reason = null)
     {
         $this->experienceLog = $experienceLog;
         $this->experiencer = $experiencer;

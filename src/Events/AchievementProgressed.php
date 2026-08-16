@@ -15,6 +15,7 @@ class AchievementProgressed implements ShouldQueue
     public $achievement;
 
     public $achiever;
+
     public $progress;
 
     public function __construct(AchieverAchievement $achievement, Model $achiever, int $progress)

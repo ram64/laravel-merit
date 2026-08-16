@@ -33,7 +33,8 @@ class MakeAchievementCommand extends GeneratorCommand
 
         // Check if achievement already exists
         if ($this->files->exists($path)) {
-            $this->error($this->type . ' already exists!');
+            $this->error($this->type.' already exists!');
+
             return false;
         }
 
@@ -44,6 +45,7 @@ class MakeAchievementCommand extends GeneratorCommand
         // Check if key is unique among existing achievements
         if ($this->isKeyDuplicate($key)) {
             $this->error("Achievement key '{$key}' already exists! Choose a different name.");
+
             return false;
         }
 
@@ -82,7 +84,7 @@ class MakeAchievementCommand extends GeneratorCommand
         } elseif (is_string($prerequisite)) {
             $prerequisiteValue = "'{$prerequisite}'";
         } elseif (is_array($prerequisite)) {
-            $prerequisiteArray = "['" . implode("', '", $prerequisite) . "']";
+            $prerequisiteArray = "['".implode("', '", $prerequisite)."']";
             $prerequisiteValue = $prerequisiteArray;
         } else {
             $prerequisiteValue = 'null';
@@ -91,19 +93,19 @@ class MakeAchievementCommand extends GeneratorCommand
 
         $this->files->put($path, $stub);
 
-        $this->info($this->type . ' created successfully.');
+        $this->info($this->type.' created successfully.');
         $this->line("Achievement key: <info>{$key}</info>");
         $this->line("Achievement name: <info>{$achievementName}</info>");
         $this->line("Goal: <info>{$goal}</info>");
-        $this->line("Secret: <info>" . ($isSecret ? 'yes' : 'no') . "</info>");
+        $this->line('Secret: <info>'.($isSecret ? 'yes' : 'no').'</info>');
 
         // Display prerequisites
         if ($prerequisite === null) {
-            $this->line("Prerequisites: <info>none</info>");
+            $this->line('Prerequisites: <info>none</info>');
         } elseif (is_string($prerequisite)) {
             $this->line("Prerequisites: <info>{$prerequisite}</info>");
         } elseif (is_array($prerequisite)) {
-            $this->line("Prerequisites: <info>" . implode(', ', $prerequisite) . "</info>");
+            $this->line('Prerequisites: <info>'.implode(', ', $prerequisite).'</info>');
         }
 
         return true;
@@ -114,7 +116,7 @@ class MakeAchievementCommand extends GeneratorCommand
      */
     protected function getStub()
     {
-        return __DIR__ . '/../../stubs/achievement.stub';
+        return __DIR__.'/../../stubs/achievement.stub';
     }
 
     /**
@@ -122,7 +124,7 @@ class MakeAchievementCommand extends GeneratorCommand
      */
     protected function getDefaultNamespace($rootNamespace)
     {
-        return config('merit.achievements_namespace', $rootNamespace . '\\Achievements');
+        return config('merit.achievements_namespace', $rootNamespace.'\\Achievements');
     }
 
     /**
@@ -134,7 +136,7 @@ class MakeAchievementCommand extends GeneratorCommand
         $className = class_basename($name);
         $achievementsPath = config('merit.achievements_path', app_path('Achievements'));
 
-        return $achievementsPath . '/' . $className . '.php';
+        return $achievementsPath.'/'.$className.'.php';
     }
 
     /**
@@ -172,6 +174,7 @@ class MakeAchievementCommand extends GeneratorCommand
     {
         try {
             $existingKeys = AchievementTracker::getAchievementKeys();
+
             return in_array($key, $existingKeys);
         } catch (\Exception $e) {
             // If we can't check existing keys, assume it's fine
@@ -228,8 +231,9 @@ class MakeAchievementCommand extends GeneratorCommand
     {
         $goal = $this->ask('What is the goal for this achievement? (default: 1)', '1');
 
-        if (!is_numeric($goal) || $goal < 1) {
+        if (! is_numeric($goal) || $goal < 1) {
             $this->error('Goal must be a positive number. Using default value of 1.');
+
             return 1;
         }
 
@@ -258,7 +262,7 @@ class MakeAchievementCommand extends GeneratorCommand
 
         $hasPrerequisites = $this->confirm('Does this achievement have prerequisites?', false);
 
-        if (!$hasPrerequisites) {
+        if (! $hasPrerequisites) {
             return null;
         }
 

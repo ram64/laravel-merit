@@ -31,7 +31,7 @@ abstract class BaseAchievementDefinition
             return static::name(null);
         }
 
-        $cacheKey = 'merit:name:' . get_class($achiever) . ':' . $achiever->id . ':' . static::key();
+        $cacheKey = 'merit:name:'.get_class($achiever).':'.$achiever->id.':'.static::key();
 
         return Cache::remember($cacheKey, config('merit.cache_ttl', 10) * 60, function () use ($achiever) {
             return static::name($achiever);
@@ -52,7 +52,7 @@ abstract class BaseAchievementDefinition
             return static::description(null);
         }
 
-        $cacheKey = 'merit:description:' . get_class($achiever) . ':' . $achiever->id . ':' . static::key();
+        $cacheKey = 'merit:description:'.get_class($achiever).':'.$achiever->id.':'.static::key();
 
         return Cache::remember($cacheKey, config('merit.cache_ttl', 10) * 60, function () use ($achiever) {
             return static::description($achiever);
@@ -128,7 +128,7 @@ abstract class BaseAchievementDefinition
      */
     public static function getAchievementRecord(Model $achiever): ?AchieverAchievement
     {
-        $cacheKey = 'merit:record:' . get_class($achiever) . ':' . $achiever->id . ':' . static::key();
+        $cacheKey = 'merit:record:'.get_class($achiever).':'.$achiever->id.':'.static::key();
 
         return Cache::remember($cacheKey, config('merit.cache_ttl', 10) * 60, function () use ($achiever) {
             return AchieverAchievement::where('achiever_id', $achiever->id)
@@ -159,14 +159,13 @@ abstract class BaseAchievementDefinition
         return max(0, static::goal() - static::getProgress($achiever));
     }
 
-
     /**
      * Check if this achievement should be visible to the achiever
      * Secret achievements are only visible once unlocked
      */
     public static function isVisibleTo(Model $achiever): bool
     {
-        if (!static::isSecret()) {
+        if (! static::isSecret()) {
             return true;
         }
 
@@ -178,7 +177,7 @@ abstract class BaseAchievementDefinition
      */
     public static function getDisplayName(Model $achiever): string
     {
-        if (static::isSecret() && !static::isUnlocked($achiever)) {
+        if (static::isSecret() && ! static::isUnlocked($achiever)) {
             return 'Hidden Achievement';
         }
 
@@ -190,7 +189,7 @@ abstract class BaseAchievementDefinition
      */
     public static function getDisplayDescription(Model $achiever): string
     {
-        if (static::isSecret() && !static::isUnlocked($achiever)) {
+        if (static::isSecret() && ! static::isUnlocked($achiever)) {
             return 'Complete certain actions to unlock this secret achievement.';
         }
 
