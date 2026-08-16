@@ -3,7 +3,12 @@
 namespace Ram64\LaravelMerit\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Carbon;
+use Ram64\LaravelMerit\Events\AchievementCompleted;
+use Ram64\LaravelMerit\Events\AchievementProgressed;
+use Ram64\LaravelMerit\Events\AchievementStarted;
+use Ram64\LaravelMerit\Events\AchievementUnlocked;
 
 /**
  * The stored progress for one achievement and one achiever.
@@ -71,7 +76,7 @@ class AchieverAchievement extends Model
     /**
      * Get the Achiever for this Achievement.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\MorphTo<Model, $this>
+     * @return MorphTo<Model, $this>
      */
     public function achiever()
     {
@@ -114,14 +119,14 @@ class AchieverAchievement extends Model
         $this->save();
 
         if (! $wasStarted && $this->progress > 0) {
-            $this->dispatchEvent(new \Ram64\LaravelMerit\Events\AchievementStarted($this, $achiever));
+            $this->dispatchEvent(new AchievementStarted($this, $achiever));
         } elseif ($this->progress > 0 && $this->progress < $this->goal) {
-            $this->dispatchEvent(new \Ram64\LaravelMerit\Events\AchievementProgressed($this, $achiever, $amount));
+            $this->dispatchEvent(new AchievementProgressed($this, $achiever, $amount));
         }
 
         if ($this->progress === $this->goal && ! $wasCompleted) {
-            $this->dispatchEvent(new \Ram64\LaravelMerit\Events\AchievementCompleted($this, $achiever));
-            $this->dispatchEvent(new \Ram64\LaravelMerit\Events\AchievementUnlocked($this, $achiever));
+            $this->dispatchEvent(new AchievementCompleted($this, $achiever));
+            $this->dispatchEvent(new AchievementUnlocked($this, $achiever));
         }
     }
 }

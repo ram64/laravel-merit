@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Ram64\LaravelMerit\Definitions\Achievements\AchievementDefinition;
+use Ram64\LaravelMerit\Definitions\Achievements\BaseAchievementDefinition;
 use Ram64\LaravelMerit\Events\AchievementCompleted;
 use Ram64\LaravelMerit\Events\AchievementProgressed;
 use Ram64\LaravelMerit\Events\AchievementStarted;
@@ -542,7 +543,7 @@ class AchievementTracker
                 // Skip abstract classes and classes that don't extend our base
                 if (
                     $reflection->isAbstract() ||
-                    ! $reflection->isSubclassOf(\Ram64\LaravelMerit\Definitions\Achievements\BaseAchievementDefinition::class)
+                    ! $reflection->isSubclassOf(BaseAchievementDefinition::class)
                 ) {
                     static::debug('Skipping class (abstract or invalid base)', ['class' => $className]);
 

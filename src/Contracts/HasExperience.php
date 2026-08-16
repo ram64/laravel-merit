@@ -2,7 +2,10 @@
 
 namespace Ram64\LaravelMerit\Contracts;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Ram64\LaravelMerit\Concerns\CanExperience;
+use Ram64\LaravelMerit\Models\ExperienceLog;
 use Ram64\LaravelMerit\Models\Experiencer;
 
 /**
@@ -15,7 +18,7 @@ use Ram64\LaravelMerit\Models\Experiencer;
  * analysis has no way to express it otherwise, and without it every call into
  * the trait from ExperienceManager reads as a call to an undefined method.
  *
- * @see \Ram64\LaravelMerit\Concerns\CanExperience
+ * @see CanExperience
  */
 interface HasExperience
 {
@@ -54,7 +57,7 @@ interface HasExperience
     public function setLevel(int $targetLevel, ?string $reason = null, array $metadata = []): bool;
 
     /**
-     * @return \Illuminate\Database\Eloquent\Builder<\Ram64\LaravelMerit\Models\ExperienceLog>
+     * @return Builder<ExperienceLog>
      */
     public function experienceLogs();
 
