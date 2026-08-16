@@ -238,6 +238,35 @@ $name = FirstPostAchievement::name($user);
 $description = FirstPostAchievement::description($user);
 ```
 
+### Rendering a List
+
+The cached accessors work one achievement at a time, which is two cache reads
+each — on the `database` cache driver, two SELECTs each. To render a page of
+achievements, read them together instead:
+
+```php
+use Ram64\LaravelMerit\Services\AchievementTracker;
+
+$text = AchievementTracker::getDisplayTextMany($user, [
+    'first_post',
+    'prolific_poster',
+    'night_owl',
+]);
+
+// [
+//     'first_post'      => ['name' => 'First Post', 'description' => '...'],
+//     'prolific_poster' => ['name' => 'Prolific',   'description' => '...'],
+//     'night_owl'       => ['name' => 'Hidden Achievement', 'description' => '...'],
+// ]
+```
+
+Every cached name and description is fetched in a single round trip; anything
+not yet cached falls back to the singular accessors and is stored on the way
+past. The output is identical to `getDisplayName()` / `getDisplayDescription()`
+for the same key, secret achievements included — a locked secret still gets its
+placeholder text, so this is safe to hand straight to a view. Keys with no
+matching definition are omitted rather than returned as nulls.
+
 ### Cache Invalidation
 
 Caches are automatically cleared when:

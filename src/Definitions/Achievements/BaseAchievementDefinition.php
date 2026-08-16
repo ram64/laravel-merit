@@ -173,12 +173,40 @@ abstract class BaseAchievementDefinition
     }
 
     /**
+     * The name shown in place of a secret achievement's own
+     */
+    public static function hiddenName(): string
+    {
+        return 'Hidden Achievement';
+    }
+
+    /**
+     * The description shown in place of a secret achievement's own
+     */
+    public static function hiddenDescription(): string
+    {
+        return 'Complete certain actions to unlock this secret achievement.';
+    }
+
+    /**
+     * Whether the achiever should be shown the placeholder text rather than
+     * the real thing.
+     *
+     * The gate sits in front of the cache, and only real text is ever cached,
+     * so anything reading those keys directly has to re-apply this.
+     */
+    public static function isTextHiddenFrom(Model $achiever): bool
+    {
+        return static::isSecret() && ! static::isUnlocked($achiever);
+    }
+
+    /**
      * Get the display name, hiding it if secret and not unlocked
      */
     public static function getDisplayName(Model $achiever): string
     {
-        if (static::isSecret() && ! static::isUnlocked($achiever)) {
-            return 'Hidden Achievement';
+        if (static::isTextHiddenFrom($achiever)) {
+            return static::hiddenName();
         }
 
         return static::getCachedName($achiever);
@@ -189,8 +217,8 @@ abstract class BaseAchievementDefinition
      */
     public static function getDisplayDescription(Model $achiever): string
     {
-        if (static::isSecret() && ! static::isUnlocked($achiever)) {
-            return 'Complete certain actions to unlock this secret achievement.';
+        if (static::isTextHiddenFrom($achiever)) {
+            return static::hiddenDescription();
         }
 
         return static::getCachedDescription($achiever);

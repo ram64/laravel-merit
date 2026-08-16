@@ -2,6 +2,7 @@
 
 namespace Ram64\LaravelMerit\Services;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -548,6 +549,89 @@ class AchievementTracker
         return array_filter($allAchievements, function ($achievementClass) use ($achiever) {
             return $achievementClass::isVisibleTo($achiever);
         });
+    }
+
+    /**
+     * Get the display name and description for many achievements at once.
+     *
+     * Rendering a list is the commonest thing an achievements package is asked
+     * to do, and doing it through getDisplayName()/getDisplayDescription() is
+     * two cache round trips per achievement — on the database cache driver,
+     * two SELECTs each. This reads every name and description in one.
+     *
+     * Unknown keys are omitted rather than returned as nulls.
+     *
+     * @param  array<int, string>  $achievementKeys
+     * @return array<string, array{name: string, description: string}>
+     */
+    public static function getDisplayTextMany(Model $achiever, array $achievementKeys): array
+    {
+        $definitions = [];
+
+        foreach (array_unique($achievementKeys) as $achievementKey) {
+            $achievementClass = static::getAchievement($achievementKey);
+
+            if ($achievementClass) {
+                $definitions[$achievementKey] = $achievementClass;
+            }
+        }
+
+        if ($definitions === []) {
+            return [];
+        }
+
+        // Every key up front, so the hits cost one round trip between them.
+        $cacheKeys = [];
+
+        foreach ($definitions as $achievementKey => $achievementClass) {
+            $cacheKeys[] = static::getNameCacheKey($achiever, $achievementKey);
+            $cacheKeys[] = static::getDescriptionCacheKey($achiever, $achievementKey);
+        }
+
+        $cached = Cache::many($cacheKeys);
+
+        $display = [];
+        $missed = 0;
+
+        foreach ($definitions as $achievementKey => $achievementClass) {
+            $name = $cached[static::getNameCacheKey($achiever, $achievementKey)] ?? null;
+            $description = $cached[static::getDescriptionCacheKey($achiever, $achievementKey)] ?? null;
+
+            if ($name === null || $description === null) {
+                // Cold path. Hand the whole job back to the definition rather
+                // than reproducing it, so an overridden accessor still wins and
+                // the two paths cannot drift apart.
+                $display[$achievementKey] = [
+                    'name' => $achievementClass::getDisplayName($achiever),
+                    'description' => $achievementClass::getDisplayDescription($achiever),
+                ];
+                $missed++;
+
+                continue;
+            }
+
+            // Only real text is ever cached, so the secret gate has to be
+            // re-applied here. Reading these keys and skipping it is how a
+            // secret achievement's name leaks.
+            if ($achievementClass::isTextHiddenFrom($achiever)) {
+                $name = $achievementClass::hiddenName();
+                $description = $achievementClass::hiddenDescription();
+            }
+
+            $display[$achievementKey] = [
+                'name' => $name,
+                'description' => $description,
+            ];
+        }
+
+        static::debug('Batch display text read', [
+            'achiever_id' => $achiever->getKey(),
+            'requested' => count($achievementKeys),
+            'resolved' => count($display),
+            'cold' => $missed,
+        ]);
+
+        return $display;
     }
 
     /**
