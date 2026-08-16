@@ -1,27 +1,6 @@
 # Achievements, XP tracking, and leveling.
 
-[![Latest Version on Packagist](https://img.shields    public static function name(?Model $achiever = null): string
-    {
-        return 'First Post';
-    }
-
-    public static function description(?Model $achiever = null): string
-    {
-        return 'Create your first post on the platform.';
-    }
-
-    // Example of dynamic content (optional):
-    // public static function name(?Model $achiever = null): string
-    // {
-    //     if ($achiever) {
-    //         $progress = static::getProgress($achiever);
-    //         $remaining = static::getRemainingProgress($achiever);
-    //         if ($remaining > 0) {
-    //             return "First Post ({$progress}/{$remaining} remaining)";
-    //         }
-    //     }
-    //     return 'First Post';
-    // }gist/v/ram64/laravel-merit.svg?style=flat-square)](https://packagist.org/packages/ram64/laravel-merit)
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/ram64/laravel-merit.svg?style=flat-square)](https://packagist.org/packages/ram64/laravel-merit)
 [![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/ram64/laravel-merit/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/ram64/laravel-merit/actions?query=workflow%3Arun-tests+branch%3Amain)
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/ram64/laravel-merit/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/ram64/laravel-merit/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/ram64/laravel-merit.svg?style=flat-square)](https://packagist.org/packages/ram64/laravel-merit)
@@ -114,15 +93,28 @@ class FirstPostAchievement extends AchievementDefinition
         return 'first_post';
     }
 
-    public static function name(): string
+    public static function name(?Model $achiever = null): string
     {
         return 'First Post';
     }
 
-    public static function description(): string
+    public static function description(?Model $achiever = null): string
     {
-        return 'Create your very first post';
+        return 'Create your first post on the platform.';
     }
+
+    // Example of dynamic content (optional):
+    // public static function name(?Model $achiever = null): string
+    // {
+    //     if ($achiever) {
+    //         $progress = static::getProgress($achiever);
+    //         $remaining = static::getRemainingProgress($achiever);
+    //         if ($remaining > 0) {
+    //             return "First Post ({$progress}/{$remaining} remaining)";
+    //         }
+    //     }
+    //     return 'First Post';
+    // }
 
     public static function goal(): int
     {
