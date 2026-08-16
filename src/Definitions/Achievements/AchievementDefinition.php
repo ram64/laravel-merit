@@ -9,6 +9,15 @@ use Ram64\LaravelMerit\Models\AchieverAchievement;
 abstract class AchievementDefinition extends BaseAchievementDefinition
 {
     /**
+     * Unlocked achievement keys per achiever, held only for the length of an
+     * open batch window. Shared across every definition, because it is keyed
+     * by achiever rather than by achievement.
+     *
+     * @var array<string, array<string, int>>
+     */
+    private static array $unlockedKeys = [];
+
+    /**
      * Get the achievement(s) that must be completed before this one
      * Can return:
      * - A single key (string): 'achievement_key'
@@ -44,23 +53,86 @@ abstract class AchievementDefinition extends BaseAchievementDefinition
             $prerequisites = [$prerequisites];
         }
 
-        // Check if all prerequisites are unlocked
+        $unlocked = self::$unlockedKeys[self::achieverKey($achiever)]
+            ?? static::fetchUnlockedKeys($achiever);
+
+        // All prerequisites must be unlocked, not any of them.
         foreach ($prerequisites as $prerequisite) {
             // Extract key from class name if it's a class
-            $prerequisiteKey = static::extractAchievementKey($prerequisite);
-
-            $isUnlocked = AchieverAchievement::where('achiever_id', $achiever->getKey())
-                ->where('achiever_type', get_class($achiever))
-                ->where('achievement_key', $prerequisiteKey)
-                ->whereNotNull('unlocked_at')
-                ->exists();
-
-            if (! $isUnlocked) {
+            if (! isset($unlocked[static::extractAchievementKey($prerequisite)])) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    /**
+     * Fetch the achiever's unlocked keys once, and hold them until
+     * flushUnlockedKeys() — so a pass over every achievement costs one query
+     * rather than one per prerequisite per achievement.
+     *
+     * Callers must pair this with flushUnlockedKeys() in a finally: while a
+     * window is open, canStart() answers from the held set, and an unlock that
+     * happens outside noteUnlocked() will not be seen.
+     */
+    public static function primeUnlockedKeys(Model $achiever): void
+    {
+        self::$unlockedKeys[self::achieverKey($achiever)] = static::fetchUnlockedKeys($achiever);
+    }
+
+    /**
+     * Close the batch window opened by primeUnlockedKeys().
+     */
+    public static function flushUnlockedKeys(?Model $achiever = null): void
+    {
+        if ($achiever === null) {
+            self::$unlockedKeys = [];
+
+            return;
+        }
+
+        unset(self::$unlockedKeys[self::achieverKey($achiever)]);
+    }
+
+    /**
+     * Record an unlock against an open batch window.
+     *
+     * This is what lets a chain complete in a single pass: a prerequisite
+     * unlocked earlier in the run has to be visible to its dependents later in
+     * the same run. A no-op when no window is open.
+     */
+    public static function noteUnlocked(Model $achiever, string $achievementKey): void
+    {
+        $achieverKey = self::achieverKey($achiever);
+
+        if (isset(self::$unlockedKeys[$achieverKey])) {
+            self::$unlockedKeys[$achieverKey][$achievementKey] = 1;
+        }
+    }
+
+    /**
+     * Every achievement key this achiever has unlocked.
+     *
+     * @return array<string, int>
+     */
+    protected static function fetchUnlockedKeys(Model $achiever): array
+    {
+        return array_flip(
+            AchieverAchievement::where('achiever_id', $achiever->getKey())
+                ->where('achiever_type', get_class($achiever))
+                ->whereNotNull('unlocked_at')
+                ->pluck('achievement_key')
+                ->all()
+        );
+    }
+
+    /**
+     * Identify one achiever within the held set.
+     */
+    private static function achieverKey(Model $achiever): string
+    {
+        return get_class($achiever).':'.$achiever->getKey();
     }
 
     /**

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Ram64\LaravelMerit\Definitions\Achievements\AchievementDefinition;
 use Ram64\LaravelMerit\Events\AchievementCompleted;
 use Ram64\LaravelMerit\Events\AchievementProgressed;
 use Ram64\LaravelMerit\Events\AchievementStarted;
@@ -51,6 +52,32 @@ class AchievementTracker
             'total_achievements' => count($achievements),
         ]);
 
+        // One query for the achiever's unlocked keys, rather than one exists()
+        // per prerequisite per achievement. Unlocks made below are fed back in
+        // so a chain still completes in this single pass.
+        AchievementDefinition::primeUnlockedKeys($achiever);
+
+        try {
+            static::processAchievements($achiever, $achievements);
+        } finally {
+            AchievementDefinition::flushUnlockedKeys($achiever);
+        }
+
+        static::debug('Achievement check processing completed');
+    }
+
+    /**
+     * The body of processCheck(), inside the prerequisite batch window.
+     *
+     * Deliberately untyped elements. Typing them as
+     * class-string<BaseAchievementDefinition> — which is what discovery
+     * actually registers — makes PHPStan flag the canStart() call below,
+     * because canStart() lives on AchievementDefinition. That is the known gap
+     * about definitions extending the base directly, and closing it is a design
+     * call rather than something to settle here.
+     */
+    protected static function processAchievements($achiever, array $achievements): void
+    {
         foreach ($achievements as $achievementClass) {
             $achievementKey = $achievementClass::key();
 
@@ -133,6 +160,7 @@ class AchievementTracker
 
                 // Auto-unlock when completed
                 $record->unlocked_at = now();
+                AchievementDefinition::noteUnlocked($achiever, $achievementKey);
                 event(new AchievementUnlocked($record, $achiever));
                 $changed = true;
             }
@@ -146,8 +174,6 @@ class AchievementTracker
                 static::forgetAchievementCaches($achiever, $achievementKey);
             }
         }
-
-        static::debug('Achievement check processing completed');
     }
 
     /**
@@ -210,6 +236,7 @@ class AchievementTracker
         $record->unlocked_at = now();
         $record->save();
 
+        AchievementDefinition::noteUnlocked($achiever, $achievementKey);
         event(new AchievementUnlocked($record, $achiever));
 
         // Clear cache when manually awarded
@@ -282,6 +309,7 @@ class AchievementTracker
 
             // Auto-unlock when completed
             $record->unlocked_at = now();
+            AchievementDefinition::noteUnlocked($achiever, $achievementKey);
             event(new AchievementUnlocked($record, $achiever));
         }
 

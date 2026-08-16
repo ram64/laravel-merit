@@ -1,5 +1,9 @@
 <?php
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Ram64\LaravelMerit\Events\AchievementUnlocked;
+use Ram64\LaravelMerit\Services\AchievementTracker;
 use Ram64\LaravelMerit\Tests\Fixtures\Achievements\Chain\StepOneAchievement;
 use Ram64\LaravelMerit\Tests\Fixtures\Achievements\Chain\StepThreeAchievement;
 use Ram64\LaravelMerit\Tests\Fixtures\Achievements\Chain\StepTwoAchievement;
@@ -67,6 +71,87 @@ it('gates on unlocked rather than completed', function () {
 
     expect(StepTwoAchievement::canStart($user))->toBeFalse();
 });
+
+describe('the batched lookup', function () {
+    it('reads the unlocked keys once per check, not once per prerequisite', function () {
+        useAchievements('Diamond');
+
+        // root has none, left and right have one each, join has two: four
+        // exists() calls before this was batched.
+        $user = createUser(points: 1);
+
+        expect(prerequisiteQueriesDuring(fn () => AchievementTracker::processCheck($user)))->toBe(1);
+    });
+
+    it('holds the count at one however many achievements are checked', function () {
+        useAchievements('Chain');
+
+        $user = createUser(points: 1);
+
+        expect(prerequisiteQueriesDuring(fn () => AchievementTracker::processCheck($user)))->toBe(1);
+    });
+
+    it('closes the window, so a later unlock is seen', function () {
+        useAchievements('Chain');
+
+        $user = createUser(points: 0);
+
+        AchievementTracker::processCheck($user);
+
+        expect(StepTwoAchievement::canStart($user))->toBeFalse();
+
+        storeProgress($user, 'chain_one');
+
+        // Would be false if the check's held set had outlived it.
+        expect(StepTwoAchievement::canStart($user))->toBeTrue();
+    });
+
+    it('closes the window even when the check throws', function () {
+        useAchievements('Chain');
+
+        $user = createUser(points: 1);
+
+        // Blow up mid-pass, after chain_one has been noted as unlocked.
+        Event::listen(AchievementUnlocked::class, function () {
+            throw new RuntimeException('listener exploded');
+        });
+
+        expect(fn () => AchievementTracker::processCheck($user))->toThrow(RuntimeException::class);
+
+        Event::forget(AchievementUnlocked::class);
+
+        // A stale window would still be claiming chain_one is unlocked.
+        expect(StepTwoAchievement::canStart($user))->toBeFalse();
+    });
+
+    it('still answers from the database when no window is open', function () {
+        useAchievements('Chain');
+
+        $user = createUser();
+
+        expect(prerequisiteQueriesDuring(fn () => StepTwoAchievement::canStart($user)))->toBe(1);
+    });
+});
+
+/**
+ * Count the "which achievements has this achiever unlocked" queries.
+ */
+function prerequisiteQueriesDuring(callable $callback): int
+{
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $callback();
+
+    $log = DB::getQueryLog();
+    DB::disableQueryLog();
+
+    return count(array_filter(
+        $log,
+        fn ($query) => str_contains($query['query'], 'unlocked_at')
+            && str_contains($query['query'], 'achievement_key')
+    ));
+}
 
 it('scopes the prerequisite check to the achiever that owns the row', function () {
     $user = createUser();
