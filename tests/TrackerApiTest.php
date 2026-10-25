@@ -181,3 +181,16 @@ describe('unlockOrProgress()', function () {
         expect($user->achievements()->firstWhere('achievement_key', 'counting')->progress)->toBe(3);
     });
 });
+
+describe('incrementProgress()', function () {
+    it('resolves the achiever from the row when none is passed', function () {
+        Event::fake([AchievementStarted::class]);
+
+        $user = createUser();
+        $record = $user->achievements()->create(['achievement_key' => 'counting', 'goal' => 3]);
+
+        $record->incrementProgress();
+
+        Event::assertDispatched(AchievementStarted::class, fn ($event) => $event->achiever->is($user));
+    });
+});

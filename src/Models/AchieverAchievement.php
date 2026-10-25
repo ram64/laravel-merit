@@ -107,6 +107,11 @@ class AchieverAchievement extends Model
      */
     public function incrementProgress(int $amount = 1, ?Model $achiever = null)
     {
+        // Every event below requires the achiever. Resolve it from the row
+        // when the caller did not pass one, rather than fail with a TypeError
+        // after the progress has already been saved.
+        $achiever ??= $this->achiever;
+
         $wasStarted = $this->progress > 0;
         $wasCompleted = $this->status === 'unlocked';
 
