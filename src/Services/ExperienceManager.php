@@ -4,6 +4,7 @@ namespace Ram64\LaravelMerit\Services;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Ram64\LaravelMerit\Contracts\HasExperience;
 use Ram64\LaravelMerit\Models\Experiencer;
 
@@ -154,19 +155,19 @@ class ExperienceManager
         $logsTable = config('merit.experience.logs_table', 'experience_logs');
 
         return [
-            'total_experiencers' => \DB::table($table)->count(),
-            'total_experience_awarded' => \DB::table($logsTable)
+            'total_experiencers' => DB::table($table)->count(),
+            'total_experience_awarded' => DB::table($logsTable)
                 ->whereColumn('experience_after', '>', 'experience_before')
-                ->sum(\DB::raw('experience_after - experience_before')),
-            'total_experience_lost' => \DB::table($logsTable)
+                ->sum(DB::raw('experience_after - experience_before')),
+            'total_experience_lost' => DB::table($logsTable)
                 ->whereColumn('experience_after', '<', 'experience_before')
-                ->sum(\DB::raw('experience_before - experience_after')),
-            'total_level_ups' => \DB::table($logsTable)
+                ->sum(DB::raw('experience_before - experience_after')),
+            'total_level_ups' => DB::table($logsTable)
                 ->whereNotNull('level_after')
                 ->whereColumn('level_after', '>', 'level_before')
                 ->count(),
-            'average_level' => \DB::table($table)->avg('level'),
-            'highest_level' => \DB::table($table)->max('level'),
+            'average_level' => DB::table($table)->avg('level'),
+            'highest_level' => DB::table($table)->max('level'),
         ];
     }
 
