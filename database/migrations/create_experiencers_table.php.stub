@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create(config('merit.experience_table', 'experiencers'), function (Blueprint $table) {
+        Schema::create(config('merit.experience.table', 'experiencers'), function (Blueprint $table) {
             $table->id();
 
             // Polymorphic experiencer
@@ -31,6 +31,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists(config('merit.experience_table', 'experiencers'));
+        Schema::dropIfExists(config('merit.experience.table', 'experiencers'));
     }
 };
