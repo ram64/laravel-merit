@@ -107,43 +107,11 @@ trait CanExperience
             return false;
         }
 
-        [$oldLevel, $newLevel, $experienceLog] = $this->changeExperience(function (Experiencer $experiencer) use ($amount, $reason, $metadata) {
-            $oldExperience = $experiencer->experience;
-            $oldLevel = $experiencer->level;
+        $change = $this->changeExperience(
+            fn (Experiencer $experiencer) => $this->applyGain($experiencer, $amount, $reason, $metadata)
+        );
 
-            // Calculate new experience (can't go below 0)
-            $newExperience = max(0, $oldExperience + $amount);
-            $newLevel = $experiencer->calculateLevel($newExperience);
-
-            // Update the experiencer
-            $experiencer->update([
-                'experience' => $newExperience,
-                'level' => max($oldLevel, $newLevel), // Levels never decrease
-            ]);
-
-            // Log the experience gain if enabled
-            $experienceLog = $this->logExperienceChange(
-                $oldExperience,
-                $newExperience,
-                $oldLevel,
-                $newLevel > $oldLevel ? $newLevel : null,
-                $reason,
-                $metadata
-            );
-
-            return [$oldLevel, $newLevel, $experienceLog];
-        });
-
-        // Fire the experience gained event
-        ExperienceGained::dispatch($experienceLog, $this, $amount, $reason);
-
-        // Check for level up
-        if ($newLevel > $oldLevel) {
-            $this->handleLevelUp($oldLevel, $newLevel, $reason, $experienceLog);
-        }
-
-        // Clear experience caches
-        $this->clearExperienceCaches();
+        $this->announceGain($change, $amount, $reason);
 
         return true;
     }
@@ -157,46 +125,140 @@ trait CanExperience
             return false;
         }
 
-        $experienceLog = $this->changeExperience(function (Experiencer $experiencer) use ($amount, $reason, $metadata) {
-            $oldExperience = $experiencer->experience;
-            $oldLevel = $experiencer->level;
+        $experienceLog = $this->changeExperience(
+            fn (Experiencer $experiencer) => $this->applyLoss($experiencer, $amount, $reason, $metadata)
+        );
 
-            // Calculate new experience (can't go below 0)
-            $newExperience = max(0, $oldExperience - $amount);
-
-            // Update the experiencer (levels never decrease)
-            $experiencer->update([
-                'experience' => $newExperience,
-                'level' => $oldLevel, // Levels never decrease
-            ]);
-
-            // Log the experience loss if enabled. No level change on loss.
-            return $this->logExperienceChange($oldExperience, $newExperience, $oldLevel, null, $reason, $metadata);
-        });
-
-        // Fire the experience lost event
-        ExperienceLost::dispatch($experienceLog, $this, $amount, $reason);
-
-        // Clear experience caches
-        $this->clearExperienceCaches();
+        $this->announceLoss($experienceLog, $amount, $reason);
 
         return true;
     }
 
     /**
      * Set experience to a specific amount.
+     *
+     * The current amount is read under the same lock as the change, so a
+     * change landing in between is not overwritten.
      */
     public function setExperience(int $amount, ?string $reason = null, array $metadata = []): bool
     {
-        $currentExperience = $this->getExperience();
+        [$difference, $change] = $this->changeExperience(function (Experiencer $experiencer) use ($amount, $reason, $metadata) {
+            $currentExperience = $experiencer->experience;
 
-        if ($amount > $currentExperience) {
-            return $this->gainExperience($amount - $currentExperience, $reason, $metadata);
-        } elseif ($amount < $currentExperience) {
-            return $this->loseExperience($currentExperience - $amount, $reason, $metadata);
+            if ($amount > $currentExperience) {
+                $difference = $amount - $currentExperience;
+
+                return [$difference, $this->applyGain($experiencer, $difference, $reason, $metadata)];
+            }
+
+            if ($amount < $currentExperience) {
+                $difference = $currentExperience - $amount;
+
+                return [-$difference, $this->applyLoss($experiencer, $difference, $reason, $metadata)];
+            }
+
+            return [0, null]; // No change needed
+        });
+
+        if ($difference > 0) {
+            $this->announceGain($change, $difference, $reason);
+        } elseif ($difference < 0) {
+            $this->announceLoss($change, -$difference, $reason);
         }
 
-        return true; // No change needed
+        return true;
+    }
+
+    /**
+     * Add experience to a locked experiencer row, raising the level if the
+     * new total reaches another, and log it.
+     *
+     * @param  array<string, mixed>  $metadata
+     * @return array{0: int, 1: int, 2: ExperienceLog|null}
+     */
+    protected function applyGain(Experiencer $experiencer, int $amount, ?string $reason, array $metadata): array
+    {
+        $oldExperience = $experiencer->experience;
+        $oldLevel = $experiencer->level;
+
+        // Calculate new experience (can't go below 0)
+        $newExperience = max(0, $oldExperience + $amount);
+        $newLevel = $experiencer->calculateLevel($newExperience);
+
+        // Update the experiencer
+        $experiencer->update([
+            'experience' => $newExperience,
+            'level' => max($oldLevel, $newLevel), // Levels never decrease
+        ]);
+
+        // Log the experience gain if enabled
+        $experienceLog = $this->logExperienceChange(
+            $oldExperience,
+            $newExperience,
+            $oldLevel,
+            $newLevel > $oldLevel ? $newLevel : null,
+            $reason,
+            $metadata
+        );
+
+        return [$oldLevel, $newLevel, $experienceLog];
+    }
+
+    /**
+     * Take experience from a locked experiencer row, never the level, and
+     * log it.
+     *
+     * @param  array<string, mixed>  $metadata
+     */
+    protected function applyLoss(Experiencer $experiencer, int $amount, ?string $reason, array $metadata): ?ExperienceLog
+    {
+        $oldExperience = $experiencer->experience;
+        $oldLevel = $experiencer->level;
+
+        // Calculate new experience (can't go below 0)
+        $newExperience = max(0, $oldExperience - $amount);
+
+        // Update the experiencer (levels never decrease)
+        $experiencer->update([
+            'experience' => $newExperience,
+            'level' => $oldLevel, // Levels never decrease
+        ]);
+
+        // Log the experience loss if enabled. No level change on loss.
+        return $this->logExperienceChange($oldExperience, $newExperience, $oldLevel, null, $reason, $metadata);
+    }
+
+    /**
+     * Fire the events for a committed gain and clear the cached payload.
+     *
+     * @param  array{0: int, 1: int, 2: ExperienceLog|null}  $change
+     */
+    protected function announceGain(array $change, int $amount, ?string $reason): void
+    {
+        [$oldLevel, $newLevel, $experienceLog] = $change;
+
+        // Fire the experience gained event
+        ExperienceGained::dispatch($experienceLog, $this, $amount, $reason);
+
+        // Check for level up
+        if ($newLevel > $oldLevel) {
+            $this->handleLevelUp($oldLevel, $newLevel, $reason, $experienceLog);
+        }
+
+        // Clear experience caches
+        $this->clearExperienceCaches();
+    }
+
+    /**
+     * Fire the event for a committed loss and clear the cached payload.
+     */
+    protected function announceLoss(?ExperienceLog $experienceLog, int $amount, ?string $reason): void
+    {
+        // Fire the experience lost event
+        ExperienceLost::dispatch($experienceLog, $this, $amount, $reason);
+
+        // Clear experience caches
+        $this->clearExperienceCaches();
     }
 
     /**

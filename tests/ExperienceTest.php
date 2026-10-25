@@ -354,6 +354,26 @@ it('does not lose a loss made through another copy of the same achiever', functi
     expect($user->fresh()->getExperience())->toBe(125);
 });
 
+it('sets experience from the current total, not a stale copy of it', function () {
+    $user = createUser();
+    $user->gainExperience(10);
+
+    $first = User::with('experiencer')->find($user->id);
+    $second = User::with('experiencer')->find($user->id);
+
+    $first->gainExperience(100);
+
+    Event::fake([ExperienceGained::class, ExperienceLost::class]);
+
+    // The second copy still holds 10. Set from that, this would be a gain of
+    // 40 on top of 110.
+    $second->setExperience(50);
+
+    expect($user->fresh()->getExperience())->toBe(50);
+    Event::assertDispatched(ExperienceLost::class, fn (ExperienceLost $event) => $event->amount === 60);
+    Event::assertNotDispatched(ExperienceGained::class);
+});
+
 it('exposes progress towards the next level', function () {
     $user = createUser();
     $user->gainExperience(175);
