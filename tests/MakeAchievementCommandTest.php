@@ -34,3 +34,36 @@ it('writes the class into the configured namespace, even outside the app namespa
         ->and($contents)->toContain('class FirstCatch extends AchievementDefinition')
         ->and($contents)->toContain("return 'first_catch';");
 });
+
+/**
+ * Load a generated definition in a fresh PHP process and report on it.
+ *
+ * A separate process, because a class whose methods do not match the parent
+ * is a fatal error at declaration time and would take the suite down with it.
+ *
+ * @return array{secret: bool, qualifies: bool, goal: int}
+ */
+function inspectGenerated(string $file, string $class): array
+{
+    $autoload = realpath(__DIR__.'/../vendor/autoload.php');
+
+    $code = 'require '.var_export($autoload, true).';'
+        .'require '.var_export($file, true).';'
+        .'$c = '.var_export($class, true).';'
+        .'$m = new class extends Illuminate\Database\Eloquent\Model {};'
+        .'echo json_encode(["secret" => $c::isSecret(), "qualifies" => $c::qualifiesFor($m), "goal" => $c::goal()]);';
+
+    $process = new Symfony\Component\Process\Process([PHP_BINARY, '-r', $code]);
+    $process->run();
+
+    expect($process->isSuccessful())->toBeTrue($process->getErrorOutput().$process->getOutput());
+
+    return json_decode($process->getOutput(), true);
+}
+
+it('generates a definition that PHP can load', function () {
+    makeAchievement($this, 'FirstCatch')->run();
+
+    expect(inspectGenerated($this->generatedPath.'/FirstCatch.php', 'Generated\\Achievements\\FirstCatch'))
+        ->toBe(['secret' => false, 'qualifies' => false, 'goal' => 3]);
+});

@@ -12,12 +12,12 @@ class DummyClass extends AchievementDefinition
         return 'DummyKey';
     }
 
-    public static function name(): string
+    public static function name(?Model $achiever = null): string
     {
         return 'DummyName';
     }
 
-    public static function description(): string
+    public static function description(?Model $achiever = null): string
     {
         return 'DummyDescription';
     }
