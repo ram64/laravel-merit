@@ -232,6 +232,24 @@ describe('discovery cache', function () {
         expect(AchievementTracker::getAchievementKeys())->toBe(['planted']);
     });
 
+    it('rediscovers rather than fatals when a cached class has been deleted', function () {
+        useAchievements('Progress');
+        AchievementTracker::getAchievementKeys();
+
+        // As left behind by a deploy that removed a definition: the cached
+        // list still names it, and the class no longer exists.
+        AchievementTracker::resetDiscovery();
+        Cache::put(discoveryKey(), [
+            'counting' => CountingAchievement::class,
+            'deleted' => 'App\\Definitions\\Achievements\\DeletedAchievement',
+        ], 600);
+
+        AchievementTracker::processCheck(createUser(points: 1));
+
+        expect(AchievementTracker::getAchievementKeys())->toEqualCanonicalizing(['counting', 'dormant'])
+            ->and(Cache::get(discoveryKey()))->not->toHaveKey('deleted');
+    });
+
     it('rediscovers from disk once the cache is cleared', function () {
         useAchievements('Chain');
         AchievementTracker::getAchievementKeys();

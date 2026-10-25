@@ -511,7 +511,10 @@ class AchievementTracker
         $cacheKey = static::getDiscoveryCacheKey();
         $cachedAchievements = Cache::get($cacheKey);
 
-        if ($cachedAchievements !== null) {
+        // A definition deleted or renamed since the list was cached would be a
+        // fatal "class not found" on first use, for every check, until the
+        // entry expired. A list naming a missing class is rediscovered instead.
+        if (is_array($cachedAchievements) && static::allClassesExist($cachedAchievements)) {
             static::$achievements = $cachedAchievements;
             static::$discovered = true;
             static::debug('Loaded achievements from cache', ['count' => count($cachedAchievements)]);
@@ -572,6 +575,22 @@ class AchievementTracker
             'cache_ttl_seconds' => static::getCacheTtl(),
         ]);
         static::$discovered = true;
+    }
+
+    /**
+     * Whether every class in a cached discovery list can still be loaded
+     *
+     * @param  array<string, string>  $achievementClasses
+     */
+    protected static function allClassesExist(array $achievementClasses): bool
+    {
+        foreach ($achievementClasses as $achievementClass) {
+            if (! class_exists($achievementClass)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
