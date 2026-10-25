@@ -14,6 +14,7 @@ code already written against the current `main`.
 - `AchievementTracker::getDisplayTextMany()` reads the name and description of
   many achievements in one cache round trip.
 - `merit.queue_name` (`MERIT_QUEUE_NAME`) sets the queue for the check job.
+- Laravel 13 support.
 
 ### Fixed
 
