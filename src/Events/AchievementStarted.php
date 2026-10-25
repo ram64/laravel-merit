@@ -2,13 +2,12 @@
 
 namespace Ram64\LaravelMerit\Events;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Ram64\LaravelMerit\Models\AchieverAchievement;
 
-class AchievementStarted implements ShouldQueue
+class AchievementStarted
 {
     use Dispatchable, SerializesModels;
 
