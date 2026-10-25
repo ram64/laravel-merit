@@ -45,6 +45,7 @@ Every option can be set from the environment.
 | `queue_achievements` | `MERIT_QUEUE_EVENTS` | `false` | Run `check()` on a queued job instead of inline |
 | `queue_connection` | `MERIT_QUEUE_CONNECTION` | `null` | Connection for that job |
 | `queue_name` | `MERIT_QUEUE_NAME` | `null` | Queue for that job |
+| `cleanup_on_delete` | `MERIT_CLEANUP_ON_DELETE` | `true` | Delete an achiever's rows when it is hard deleted |
 | `debug.enabled` | `MERIT_DEBUG` | `false` | Log every step of a check (see `debug.log_channel`) |
 | `experience.*` | | | Tables, logging, and the level ladder; see [Experience and levels](#experience-and-levels) |
 
@@ -141,10 +142,15 @@ AchievementTracker::increment($user, 'prolific_poster', 1);
 ```
 
 A check asks each definition for `calculateCurrentProgress()` and stores the
-result. A progress row is created only once an achievement has some progress,
-so an achievement nobody has started has no row at all. Reaching the goal
-completes and unlocks the achievement in the same pass, and an unlocked
-achievement stays unlocked whatever its progress does afterwards.
+result against the definition's current `goal()`. A progress row is created
+only once an achievement has some progress, so an achievement nobody has
+started has no row at all. Reaching the goal completes and unlocks the
+achievement in the same pass, and an unlocked achievement stays unlocked
+whatever its progress does afterwards; a check does not even recompute it.
+
+A check reads all of the achiever's rows in one query. The unlock itself is
+a conditional update, so two checks racing over the same achiever unlock
+each achievement once and announce it once.
 
 ### Prerequisites
 
@@ -178,8 +184,10 @@ FirstPostAchievement::getProgressPercentage($user); // float
 FirstPostAchievement::isUnlocked($user);
 FirstPostAchievement::isVisibleTo($user);
 
-AchievementTracker::getAchievementDisplay($user, 'first_post'); // everything above, cached
-AchievementTracker::getAllAchievements();                       // definition classes, in dependency order
+AchievementTracker::getAchievementDisplay($user, 'first_post');      // everything above, cached
+AchievementTracker::getAchievementDisplayMany($user, $keys);         // the same for a page of them
+AchievementTracker::getAllAchievements();                            // definition classes, in dependency order
+AchievementTracker::getVisibleAchievements($user);                   // without locked secrets
 ```
 
 ### Events
@@ -187,6 +195,11 @@ AchievementTracker::getAllAchievements();                       // definition cl
 `AchievementStarted`, `AchievementProgressed` (carries the new total),
 `AchievementCompleted` and `AchievementUnlocked`, all in
 `Ram64\LaravelMerit\Events`, each with the stored record and the achiever.
+
+They fire after the row is saved, so a listener reading the achiever's state
+sees the change. That makes them at most once: a listener that throws leaves
+the unlock stored, and it is not announced again. Listeners run
+synchronously unless the listener implements `ShouldQueue`.
 
 ## Experience and levels
 
@@ -212,9 +225,15 @@ $user->getExperienceProgress(); // ['current' => ..., 'required' => ..., 'percen
 
 Levels come from `merit.experience.level_calculation`: `static` reads the
 `level_thresholds` ladder, and `dynamic` evaluates `level_formula` for each
-level up to `max_level`. Gaining experience can raise the level; losing it
-never lowers the level. Only `setLevel()` can lower one, and only when
-`allow_level_decrease` is true.
+level up to `max_level`. The formula is arithmetic on `$level` (numbers,
+`+ - * / % **`, parentheses and common math functions, never `eval()`), or
+the name of an invokable class.
+
+Gaining experience can raise the level; losing it never lowers the level.
+Only `setLevel()` can lower one, and only when `allow_level_decrease` is
+true, in which case experience comes down to the new level's threshold too.
+Each change locks the experiencer row, so concurrent awards do not overwrite
+each other.
 
 Each change is written to `experience_logs` unless `logging_enabled` is false,
 and fires `ExperienceGained`, `ExperienceLost` or `LevelledUp`.
@@ -245,6 +264,26 @@ $text = AchievementTracker::getDisplayTextMany($user, ['first_post', 'night_owl'
 
 The output matches `getDisplayName()` and `getDisplayDescription()` for every
 key, secret placeholders included. Unknown keys are left out.
+`getAchievementDisplayMany()` does the same for the full payload, building
+anything not cached from one query.
+
+## Deleting an achiever
+
+Deleting a model also deletes its achievement progress, experience and
+experience log, on a hard delete only: a soft-deleted model keeps them, so a
+restore brings them back. Set `cleanup_on_delete` to false to keep them
+always. A mass delete through the query builder fires no model events and is
+not affected.
+
+## Documentation
+
+- [Prerequisites](https://github.com/ram64/laravel-merit/blob/main/docs/prerequisites.md)
+- [Experience and levels](https://github.com/ram64/laravel-merit/blob/main/docs/experience.md)
+- [Secret achievements](https://github.com/ram64/laravel-merit/blob/main/docs/SECRET_ACHIEVEMENTS.md)
+- [Caching](https://github.com/ram64/laravel-merit/blob/main/docs/CACHING.md)
+- [Debug mode](https://github.com/ram64/laravel-merit/blob/main/docs/DEBUG_MODE.md)
+- [make:merit-achievement](https://github.com/ram64/laravel-merit/blob/main/docs/MAKE_ACHIEVEMENT_COMMAND.md)
+- [Publishing assets](https://github.com/ram64/laravel-merit/blob/main/docs/PUBLISHING.md)
 
 ## Testing
 
