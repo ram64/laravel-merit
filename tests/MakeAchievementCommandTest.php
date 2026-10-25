@@ -67,3 +67,10 @@ it('generates a definition that PHP can load', function () {
     expect(inspectGenerated($this->generatedPath.'/FirstCatch.php', 'Generated\\Achievements\\FirstCatch'))
         ->toBe(['secret' => false, 'qualifies' => false, 'goal' => 3]);
 });
+
+it('marks a secret achievement secret without making it qualify', function () {
+    makeAchievement($this, 'HiddenCatch', secret: true)->run();
+
+    expect(inspectGenerated($this->generatedPath.'/HiddenCatch.php', 'Generated\\Achievements\\HiddenCatch'))
+        ->toBe(['secret' => true, 'qualifies' => false, 'goal' => 3]);
+});

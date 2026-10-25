@@ -72,11 +72,12 @@ class MakeAchievementCommand extends GeneratorCommand
         $stub = str_replace('DummyDescription', $description, $stub);
 
         // Replace goal placeholder
-        $stub = str_replace('return 1;', "return {$goal};", $stub);
+        $stub = str_replace('DummyGoal', (string) $goal, $stub);
 
-        // Replace secret placeholder
-        $secretValue = $isSecret ? 'true' : 'false';
-        $stub = str_replace('return false;', "return {$secretValue};", $stub);
+        // Replace secret placeholder. A placeholder of its own, because
+        // matching on 'return false;' also rewrote qualifiesFor() and made
+        // every secret achievement qualify from the start.
+        $stub = str_replace('DummySecret', $isSecret ? 'true' : 'false', $stub);
 
         // Replace prerequisite placeholder
         if ($prerequisite === null) {
@@ -86,7 +87,7 @@ class MakeAchievementCommand extends GeneratorCommand
         } else {
             $prerequisiteValue = "['".implode("', '", $prerequisite)."']";
         }
-        $stub = str_replace('return null;', "return {$prerequisiteValue};", $stub);
+        $stub = str_replace('DummyPrerequisite', $prerequisiteValue, $stub);
 
         $this->files->put($path, $stub);
 

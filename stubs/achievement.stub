@@ -24,12 +24,12 @@ class DummyClass extends AchievementDefinition
 
     public static function goal(): int
     {
-        return 1;
+        return DummyGoal;
     }
 
     public static function isSecret(): bool
     {
-        return false;
+        return DummySecret;
     }
 
     public static function category(): string
@@ -60,6 +60,6 @@ class DummyClass extends AchievementDefinition
         // TODO: Return the key(s) of required achievement(s), or null if none
         // Single prerequisite: return 'achievement_key';
         // Multiple prerequisites: return ['achievement_key1', 'achievement_key2'];
-        return null;
+        return DummyPrerequisite;
     }
 }
