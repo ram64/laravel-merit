@@ -29,7 +29,7 @@ jobs:
       # composer.lock is gitignored, so resolve explicitly rather than relying
       # on `composer install` falling back to an update.
       - name: Install composer dependencies
-        uses: ramsey/composer-install@v3
+        uses: ramsey/composer-install@v4
         with:
           dependency-versions: highest
 
