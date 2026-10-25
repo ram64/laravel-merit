@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Event;
 use Ram64\LaravelMerit\Events\ExperienceGained;
+use Ram64\LaravelMerit\Events\ExperienceLost;
 use Ram64\LaravelMerit\Events\LevelledUp;
 use Ram64\LaravelMerit\Services\ExperienceManager;
 
@@ -159,6 +160,40 @@ describe('setLevel()', function () {
 
         expect($user->setLevel(2))->toBeTrue()
             ->and($user->getLevel())->toBe(2);
+    });
+
+    it('brings experience down to the lowered level, so the next gain does not undo it', function () {
+        config()->set('merit.experience.allow_level_decrease', true);
+
+        $user = createUser();
+        $user->gainExperience(1000);
+
+        Event::fake([LevelledUp::class, ExperienceLost::class]);
+
+        $user->setLevel(2);
+
+        expect($user->getLevel())->toBe(2)
+            ->and($user->getExperience())->toBe(100);
+        Event::assertDispatched(ExperienceLost::class, fn (ExperienceLost $event) => $event->amount === 900);
+
+        // One more point used to recalculate level 5 and announce it.
+        $user->gainExperience(1);
+
+        expect($user->getLevel())->toBe(2);
+        Event::assertNotDispatched(LevelledUp::class);
+    });
+
+    it('leaves experience alone when lowering to a level it is already below', function () {
+        config()->set('merit.experience.allow_level_decrease', true);
+
+        $user = createUser();
+        $user->gainExperience(1000);
+        $user->loseExperience(950);
+
+        $user->setLevel(2);
+
+        expect($user->getLevel())->toBe(2)
+            ->and($user->getExperience())->toBe(50);
     });
 
     it('records a forced decrease as an administrative change', function () {

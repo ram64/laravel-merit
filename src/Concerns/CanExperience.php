@@ -192,9 +192,14 @@ trait CanExperience
             // Calculate the minimum experience required for the target level
             $requiredExperience = $experiencer->getExperienceForLevel($targetLevel);
 
-            // For level increases or allowed decreases, ensure we have at least the required experience
-            // For natural decreases (not allowed), keep current experience
-            if ($allowDecrease || $targetLevel > $currentLevel) {
+            if ($targetLevel < $currentLevel) {
+                // A decrease brings experience down to the target level's
+                // threshold, or leaves it where it is if it is already lower.
+                // Leaving it above meant the next gain of any size
+                // recalculated the old level and announced it as a level up.
+                $newExperience = min($currentExperience, $requiredExperience);
+            } elseif ($allowDecrease || $targetLevel > $currentLevel) {
+                // For level increases, ensure we have at least the required experience
                 $newExperience = max($currentExperience, $requiredExperience);
             } else {
                 $newExperience = $currentExperience;
