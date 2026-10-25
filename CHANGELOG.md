@@ -11,8 +11,11 @@ already written against `main` before this release.
 
 ### Upgrading
 
-- **PHP 8.3 and Laravel 11.45, 12.25 or 13** are now the minimums, and the
+- **PHP 8.3 and Laravel 12.25 or 13** are now the minimums, and the
   package requires `laravel/framework` rather than `illuminate/contracts`.
+  Laravel 11 is dropped: it is out of security support, every 11.x release
+  carries an open advisory, and current Composer refuses to install any of
+  them.
 - **Publish tags** are `merit-migrations` and `merit-config`. The tags the
   README used to give published nothing.
 - **Morph maps.** If your application registers a morph map, rows written

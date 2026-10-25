@@ -10,7 +10,7 @@ your application; the database stores only each achiever's progress. Adding an
 achievement needs no migration, and deleting one leaves its stored rows
 orphaned rather than broken.
 
-Requires PHP 8.3+ and Laravel 11.45+, 12.25+ or 13.
+Requires PHP 8.3+ and Laravel 12.25+ or 13.
 
 ## Installation
 
