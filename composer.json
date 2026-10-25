@@ -4,7 +4,12 @@
     "keywords": [
         "ram64",
         "laravel",
-        "laravel-merit"
+        "laravel-merit",
+        "achievements",
+        "gamification",
+        "experience",
+        "xp",
+        "levels"
     ],
     "homepage": "https://github.com/ram64/laravel-merit",
     "license": "MIT",
