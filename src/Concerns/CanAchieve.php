@@ -13,11 +13,13 @@ trait CanAchieve
         return $this->morphMany(AchieverAchievement::class, 'achiever');
     }
 
-    public function unlockOrProgress(string $achievementClass, int $amount = 1, array $metadata = [], int $goal = 1)
+    public function unlockOrProgress(string $achievementClass, int $amount = 1, array $metadata = [], ?int $goal = null)
     {
+        // The goal defaults to the definition's own. A fixed default of 1
+        // unlocked a multi-step achievement on its first step.
         $achievement = $this->achievements()->firstOrCreate(
             ['achievement_key' => $achievementClass::key()],
-            ['metadata' => $metadata, 'progress' => 0, 'goal' => $goal, 'status' => 'started']
+            ['metadata' => $metadata, 'progress' => 0, 'goal' => $goal ?? $achievementClass::goal(), 'status' => 'started']
         );
 
         $achievement->incrementProgress($amount, $this);

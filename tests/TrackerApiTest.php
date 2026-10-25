@@ -184,6 +184,17 @@ describe('unlockOrProgress()', function () {
         Event::assertDispatchedTimes(AchievementUnlocked::class, 1);
     });
 
+    it("takes the definition's goal when none is passed", function () {
+        $user = createUser();
+
+        $user->unlockOrProgress(CountingAchievement::class);
+
+        $record = $user->achievements()->firstWhere('achievement_key', 'counting');
+
+        expect($record->goal)->toBe(CountingAchievement::goal())
+            ->and($record->unlocked_at)->toBeNull();
+    });
+
     it('does not overshoot the goal', function () {
         $user = createUser();
 
