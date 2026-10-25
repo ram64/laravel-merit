@@ -7,6 +7,12 @@ return [
      */
     'achievements_table' => env('MERIT_ACHIEVEMENTS_TABLE', 'achiever_achievements'),
     /**
+     * Whether deleting an achiever also deletes its achievement progress,
+     * experience and experience log. Only a hard delete does: a soft-deleted
+     * model keeps them, so restoring it restores them.
+     */
+    'cleanup_on_delete' => env('MERIT_CLEANUP_ON_DELETE', true),
+    /**
      * Cache TTL in minutes for achievements.
      */
     'cache_ttl' => env('MERIT_CACHE_TTL', 10),

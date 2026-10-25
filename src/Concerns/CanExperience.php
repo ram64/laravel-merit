@@ -9,9 +9,40 @@ use Ram64\LaravelMerit\Events\ExperienceLost;
 use Ram64\LaravelMerit\Events\LevelledUp;
 use Ram64\LaravelMerit\Models\ExperienceLog;
 use Ram64\LaravelMerit\Models\Experiencer;
+use Ram64\LaravelMerit\Support\ModelDeletion;
 
 trait CanExperience
 {
+    /**
+     * Delete the experiencer row and its log along with the model, on a hard
+     * delete only, as CanAchieve does for achievements.
+     * merit.cleanup_on_delete turns this off.
+     */
+    public static function bootCanExperience(): void
+    {
+        static::deleted(function (self $experiencer) {
+            if (! config('merit.cleanup_on_delete', true)) {
+                return;
+            }
+
+            if (! ModelDeletion::isPermanent($experiencer)) {
+                return;
+            }
+
+            Experiencer::query()
+                ->where('experiencer_id', $experiencer->getKey())
+                ->where('experiencer_type', $experiencer->getMorphClass())
+                ->delete();
+
+            ExperienceLog::query()
+                ->where('experiencer_id', $experiencer->getKey())
+                ->where('experiencer_type', $experiencer->getMorphClass())
+                ->delete();
+
+            $experiencer->clearExperienceCaches();
+        });
+    }
+
     /**
      * Get the experiencer record for this model.
      *
