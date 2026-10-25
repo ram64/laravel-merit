@@ -107,18 +107,27 @@ class AchieverAchievement extends Model
      */
     public function incrementProgress(int $amount = 1, ?Model $achiever = null)
     {
+        // An unlocked row is final, as it is for the tracker's increment().
+        // Carrying on re-stamped unlocked_at on every later call. It also
+        // re-fired the unlock events on a row the tracker had unlocked, because
+        // this used to test the status column, which the tracker never writes.
+        if ($this->unlocked_at !== null) {
+            return;
+        }
+
         // Every event below requires the achiever. Resolve it from the row
         // when the caller did not pass one, rather than fail with a TypeError
         // after the progress has already been saved.
         $achiever ??= $this->achiever;
 
         $wasStarted = $this->progress > 0;
-        $wasCompleted = $this->status === 'unlocked';
 
         $this->progress += $amount;
         $this->status = ($this->progress >= $this->goal) ? 'unlocked' : ($this->progress > 0 ? 'in_progress' : 'started');
         $this->progress = min($this->progress, $this->goal);
         if ($this->progress === $this->goal) {
+            // Both stamps, as the tracker writes them.
+            $this->completed_at = now();
             $this->unlocked_at = now();
         }
         $this->save();
@@ -129,7 +138,7 @@ class AchieverAchievement extends Model
             $this->dispatchEvent(new AchievementProgressed($this, $achiever, $amount));
         }
 
-        if ($this->progress === $this->goal && ! $wasCompleted) {
+        if ($this->progress === $this->goal) {
             $this->dispatchEvent(new AchievementCompleted($this, $achiever));
             $this->dispatchEvent(new AchievementUnlocked($this, $achiever));
         }

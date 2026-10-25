@@ -193,4 +193,40 @@ describe('incrementProgress()', function () {
 
         Event::assertDispatched(AchievementStarted::class, fn ($event) => $event->achiever->is($user));
     });
+
+    it('stamps completed_at alongside unlocked_at, as the tracker does', function () {
+        $user = createUser();
+
+        $user->unlockOrProgress(CountingAchievement::class, 3, [], 3);
+
+        $record = $user->achievements()->firstWhere('achievement_key', 'counting');
+
+        expect($record->completed_at)->not->toBeNull()
+            ->and($record->unlocked_at)->not->toBeNull();
+    });
+
+    it('leaves the unlock time alone on later calls', function () {
+        $user = createUser();
+
+        $this->travelTo(now()->subDay());
+        $user->unlockOrProgress(CountingAchievement::class, 3, [], 3);
+        $unlockedAt = $user->achievements()->first()->unlocked_at->toDateTimeString();
+        $this->travelBack();
+
+        $user->unlockOrProgress(CountingAchievement::class, 1, [], 3);
+
+        expect($user->achievements()->first()->unlocked_at->toDateTimeString())->toBe($unlockedAt);
+    });
+
+    it('does not unlock a second time a row the tracker already unlocked', function () {
+        $user = createUser();
+        AchievementTracker::award($user, 'counting');
+
+        Event::fake([AchievementCompleted::class, AchievementUnlocked::class]);
+
+        $user->unlockOrProgress(CountingAchievement::class, 1, [], 3);
+
+        Event::assertNotDispatched(AchievementCompleted::class);
+        Event::assertNotDispatched(AchievementUnlocked::class);
+    });
 });
