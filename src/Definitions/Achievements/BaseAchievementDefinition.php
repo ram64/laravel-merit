@@ -102,7 +102,7 @@ abstract class BaseAchievementDefinition
     {
         return array_flip(
             AchieverAchievement::where('achiever_id', $achiever->getKey())
-                ->where('achiever_type', get_class($achiever))
+                ->where('achiever_type', $achiever->getMorphClass())
                 ->whereNotNull('unlocked_at')
                 ->pluck('achievement_key')
                 ->all()
@@ -232,7 +232,7 @@ abstract class BaseAchievementDefinition
 
         return Cache::remember($cacheKey, config('merit.cache_ttl', 10) * 60, function () use ($achiever) {
             return AchieverAchievement::where('achiever_id', $achiever->getKey())
-                ->where('achiever_type', get_class($achiever))
+                ->where('achiever_type', $achiever->getMorphClass())
                 ->where('achievement_key', static::key())
                 ->first();
         });

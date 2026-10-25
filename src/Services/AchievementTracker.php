@@ -120,7 +120,7 @@ class AchievementTracker
             $record = AchieverAchievement::firstOrCreate(
                 [
                     'achiever_id' => $achiever->getKey(),
-                    'achiever_type' => get_class($achiever),
+                    'achiever_type' => $achiever->getMorphClass(),
                     'achievement_key' => $achievementClass::key(),
                 ],
                 [
@@ -205,7 +205,7 @@ class AchievementTracker
         $record = AchieverAchievement::firstOrCreate(
             [
                 'achiever_id' => $achiever->getKey(),
-                'achiever_type' => get_class($achiever),
+                'achiever_type' => $achiever->getMorphClass(),
                 'achievement_key' => $achievementKey,
             ],
             [
@@ -281,7 +281,7 @@ class AchievementTracker
         $record = AchieverAchievement::firstOrCreate(
             [
                 'achiever_id' => $achiever->getKey(),
-                'achiever_type' => get_class($achiever),
+                'achiever_type' => $achiever->getMorphClass(),
                 'achievement_key' => $achievementKey,
             ],
             [

@@ -95,7 +95,7 @@ trait CanExperience
         if (config('merit.experience.logging_enabled', true)) {
             $experienceLog = ExperienceLog::create([
                 'experiencer_id' => $this->getKey(),
-                'experiencer_type' => get_class($this),
+                'experiencer_type' => $this->getMorphClass(),
                 'experience_before' => $oldExperience,
                 'experience_after' => $newExperience,
                 'level_before' => $oldLevel,
@@ -147,7 +147,7 @@ trait CanExperience
         if (config('merit.experience.logging_enabled', true)) {
             $experienceLog = ExperienceLog::create([
                 'experiencer_id' => $this->getKey(),
-                'experiencer_type' => get_class($this),
+                'experiencer_type' => $this->getMorphClass(),
                 'experience_before' => $oldExperience,
                 'experience_after' => $newExperience,
                 'level_before' => $oldLevel,
@@ -227,7 +227,7 @@ trait CanExperience
         if (config('merit.experience.logging_enabled', true)) {
             $experienceLog = ExperienceLog::create([
                 'experiencer_id' => $this->getKey(),
-                'experiencer_type' => get_class($this),
+                'experiencer_type' => $this->getMorphClass(),
                 'experience_before' => $currentExperience,
                 'experience_after' => $newExperience,
                 'level_before' => $currentLevel,
@@ -282,7 +282,7 @@ trait CanExperience
     public function experienceLogs()
     {
         return ExperienceLog::where('experiencer_id', $this->getKey())
-            ->where('experiencer_type', get_class($this))
+            ->where('experiencer_type', $this->getMorphClass())
             ->orderBy('created_at', 'desc');
     }
 
