@@ -76,34 +76,32 @@ trait CanExperience
             return false;
         }
 
-        $experiencer = $this->getExperiencer();
-        $oldExperience = $experiencer->experience;
-        $oldLevel = $experiencer->level;
+        [$oldLevel, $newLevel, $experienceLog] = $this->changeExperience(function (Experiencer $experiencer) use ($amount, $reason, $metadata) {
+            $oldExperience = $experiencer->experience;
+            $oldLevel = $experiencer->level;
 
-        // Calculate new experience (can't go below 0)
-        $newExperience = max(0, $oldExperience + $amount);
-        $newLevel = $experiencer->calculateLevel($newExperience);
+            // Calculate new experience (can't go below 0)
+            $newExperience = max(0, $oldExperience + $amount);
+            $newLevel = $experiencer->calculateLevel($newExperience);
 
-        // Update the experiencer
-        $experiencer->update([
-            'experience' => $newExperience,
-            'level' => max($oldLevel, $newLevel), // Levels never decrease
-        ]);
-
-        // Log the experience gain if enabled
-        $experienceLog = null;
-        if (config('merit.experience.logging_enabled', true)) {
-            $experienceLog = ExperienceLog::create([
-                'experiencer_id' => $this->getKey(),
-                'experiencer_type' => $this->getMorphClass(),
-                'experience_before' => $oldExperience,
-                'experience_after' => $newExperience,
-                'level_before' => $oldLevel,
-                'level_after' => $newLevel > $oldLevel ? $newLevel : null,
-                'reason' => $reason,
-                'metadata' => $metadata,
+            // Update the experiencer
+            $experiencer->update([
+                'experience' => $newExperience,
+                'level' => max($oldLevel, $newLevel), // Levels never decrease
             ]);
-        }
+
+            // Log the experience gain if enabled
+            $experienceLog = $this->logExperienceChange(
+                $oldExperience,
+                $newExperience,
+                $oldLevel,
+                $newLevel > $oldLevel ? $newLevel : null,
+                $reason,
+                $metadata
+            );
+
+            return [$oldLevel, $newLevel, $experienceLog];
+        });
 
         // Fire the experience gained event
         ExperienceGained::dispatch($experienceLog, $this, $amount, $reason);
@@ -128,34 +126,22 @@ trait CanExperience
             return false;
         }
 
-        $experiencer = $this->getExperiencer();
-        $oldExperience = $experiencer->experience;
-        $oldLevel = $experiencer->level;
+        $experienceLog = $this->changeExperience(function (Experiencer $experiencer) use ($amount, $reason, $metadata) {
+            $oldExperience = $experiencer->experience;
+            $oldLevel = $experiencer->level;
 
-        // Calculate new experience (can't go below 0)
-        $newExperience = max(0, $oldExperience - $amount);
-        $newLevel = $experiencer->calculateLevel($newExperience);
+            // Calculate new experience (can't go below 0)
+            $newExperience = max(0, $oldExperience - $amount);
 
-        // Update the experiencer (levels never decrease)
-        $experiencer->update([
-            'experience' => $newExperience,
-            'level' => $oldLevel, // Levels never decrease
-        ]);
-
-        // Log the experience loss if enabled
-        $experienceLog = null;
-        if (config('merit.experience.logging_enabled', true)) {
-            $experienceLog = ExperienceLog::create([
-                'experiencer_id' => $this->getKey(),
-                'experiencer_type' => $this->getMorphClass(),
-                'experience_before' => $oldExperience,
-                'experience_after' => $newExperience,
-                'level_before' => $oldLevel,
-                'level_after' => null, // No level change on loss
-                'reason' => $reason,
-                'metadata' => $metadata,
+            // Update the experiencer (levels never decrease)
+            $experiencer->update([
+                'experience' => $newExperience,
+                'level' => $oldLevel, // Levels never decrease
             ]);
-        }
+
+            // Log the experience loss if enabled. No level change on loss.
+            return $this->logExperienceChange($oldExperience, $newExperience, $oldLevel, null, $reason, $metadata);
+        });
 
         // Fire the experience lost event
         ExperienceLost::dispatch($experienceLog, $this, $amount, $reason);
@@ -191,54 +177,58 @@ trait CanExperience
             return false;
         }
 
-        $experiencer = $this->getExperiencer();
-        $currentLevel = $experiencer->level;
-        $currentExperience = $experiencer->experience;
-
         // Check if level decreases are allowed
         $allowDecrease = config('merit.experience.allow_level_decrease', false);
 
-        // If level decreases not allowed and target level is lower, keep current level
-        if (! $allowDecrease && $targetLevel < $currentLevel) {
-            return true; // No change needed
-        }
+        $change = $this->changeExperience(function (Experiencer $experiencer) use ($targetLevel, $allowDecrease, $reason, $metadata) {
+            $currentLevel = $experiencer->level;
+            $currentExperience = $experiencer->experience;
 
-        // Calculate the minimum experience required for the target level
-        $requiredExperience = $experiencer->getExperienceForLevel($targetLevel);
+            // If level decreases not allowed and target level is lower, keep current level
+            if (! $allowDecrease && $targetLevel < $currentLevel) {
+                return null; // No change needed
+            }
 
-        // For level increases or allowed decreases, ensure we have at least the required experience
-        // For natural decreases (not allowed), keep current experience
-        if ($allowDecrease || $targetLevel > $currentLevel) {
-            $newExperience = max($currentExperience, $requiredExperience);
-        } else {
-            $newExperience = $currentExperience;
-        }
+            // Calculate the minimum experience required for the target level
+            $requiredExperience = $experiencer->getExperienceForLevel($targetLevel);
 
-        $newLevel = $targetLevel;
+            // For level increases or allowed decreases, ensure we have at least the required experience
+            // For natural decreases (not allowed), keep current experience
+            if ($allowDecrease || $targetLevel > $currentLevel) {
+                $newExperience = max($currentExperience, $requiredExperience);
+            } else {
+                $newExperience = $currentExperience;
+            }
 
-        // Update the experiencer
-        $experiencer->update([
-            'experience' => $newExperience,
-            'level' => $newLevel,
-        ]);
+            $newLevel = $targetLevel;
 
-        // Log the level change if enabled
-        $experienceLog = null;
-        if (config('merit.experience.logging_enabled', true)) {
-            $experienceLog = ExperienceLog::create([
-                'experiencer_id' => $this->getKey(),
-                'experiencer_type' => $this->getMorphClass(),
-                'experience_before' => $currentExperience,
-                'experience_after' => $newExperience,
-                'level_before' => $currentLevel,
-                'level_after' => $newLevel > $currentLevel ? $newLevel : null,
-                'reason' => $reason,
-                'metadata' => array_merge($metadata, [
+            // Update the experiencer
+            $experiencer->update([
+                'experience' => $newExperience,
+                'level' => $newLevel,
+            ]);
+
+            // Log the level change if enabled
+            $experienceLog = $this->logExperienceChange(
+                $currentExperience,
+                $newExperience,
+                $currentLevel,
+                $newLevel > $currentLevel ? $newLevel : null,
+                $reason,
+                array_merge($metadata, [
                     'manual_level_set' => true,
                     'level_decrease_allowed' => $allowDecrease,
-                ]),
-            ]);
+                ])
+            );
+
+            return [$currentLevel, $currentExperience, $newLevel, $newExperience, $experienceLog];
+        });
+
+        if ($change === null) {
+            return true;
         }
+
+        [$currentLevel, $currentExperience, $newLevel, $newExperience, $experienceLog] = $change;
 
         // Fire appropriate events
         if ($newLevel > $currentLevel) {
@@ -262,6 +252,64 @@ trait CanExperience
         $this->clearExperienceCaches();
 
         return true;
+    }
+
+    /**
+     * Run a change to the experiencer row under a row lock.
+     *
+     * Reading the current experience and writing the new total used to be
+     * separate steps, so two awards at once could both read 100 and each
+     * write its own total, losing the other. The row is now re-read with
+     * lockForUpdate() inside a transaction: a second change waits for the
+     * first to commit, then works from its result. A copy of the row already
+     * loaded on this model is never trusted for the write.
+     *
+     * Events are left to the caller, to fire once the change is committed.
+     *
+     * @template TResult
+     *
+     * @param  callable(Experiencer): TResult  $change
+     * @return TResult
+     */
+    protected function changeExperience(callable $change): mixed
+    {
+        $experiencer = $this->getExperiencer();
+
+        $result = $experiencer->getConnection()->transaction(function () use ($experiencer, $change, &$locked) {
+            $locked = $experiencer->newQuery()->lockForUpdate()->findOrFail($experiencer->getKey());
+
+            return $change($locked);
+        });
+
+        // Keep an eager-loaded relation in step with what was written.
+        if ($this->relationLoaded('experiencer')) {
+            $this->setRelation('experiencer', $locked);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Write an experience log row, if logging is enabled.
+     *
+     * @param  array<string, mixed>  $metadata
+     */
+    protected function logExperienceChange(int $experienceBefore, int $experienceAfter, int $levelBefore, ?int $levelAfter, ?string $reason, array $metadata): ?ExperienceLog
+    {
+        if (! config('merit.experience.logging_enabled', true)) {
+            return null;
+        }
+
+        return ExperienceLog::create([
+            'experiencer_id' => $this->getKey(),
+            'experiencer_type' => $this->getMorphClass(),
+            'experience_before' => $experienceBefore,
+            'experience_after' => $experienceAfter,
+            'level_before' => $levelBefore,
+            'level_after' => $levelAfter,
+            'reason' => $reason,
+            'metadata' => $metadata,
+        ]);
     }
 
     /**

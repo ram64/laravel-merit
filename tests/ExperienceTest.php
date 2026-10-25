@@ -7,6 +7,7 @@ use Ram64\LaravelMerit\Events\LevelledUp;
 use Ram64\LaravelMerit\Models\ExperienceLog;
 use Ram64\LaravelMerit\Services\ExperienceManager;
 use Ram64\LaravelMerit\Tests\Fixtures\Models\PlainModel;
+use Ram64\LaravelMerit\Tests\Fixtures\Models\User;
 
 it('starts an experiencer at zero experience and level one', function () {
     $user = createUser();
@@ -322,6 +323,35 @@ describe('ExperienceManager', function () {
             ->and($results[1])->toHaveKey('error')
             ->and($user->getExperience())->toBe(100);
     });
+});
+
+it('does not lose a gain made through another copy of the same achiever', function () {
+    $user = createUser();
+    $user->gainExperience(10);
+
+    // Two copies loaded at once, as two requests or workers would hold them,
+    // each with its own copy of the experiencer row.
+    $first = User::with('experiencer')->find($user->id);
+    $second = User::with('experiencer')->find($user->id);
+
+    $first->gainExperience(100);
+    $second->gainExperience(50);
+
+    expect($user->fresh()->getExperience())->toBe(160)
+        ->and($second->getExperience())->toBe(160);
+});
+
+it('does not lose a loss made through another copy of the same achiever', function () {
+    $user = createUser();
+    $user->gainExperience(200);
+
+    $first = User::with('experiencer')->find($user->id);
+    $second = User::with('experiencer')->find($user->id);
+
+    $first->loseExperience(50);
+    $second->loseExperience(25);
+
+    expect($user->fresh()->getExperience())->toBe(125);
 });
 
 it('exposes progress towards the next level', function () {
