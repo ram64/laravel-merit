@@ -25,8 +25,11 @@ class MakeAchievementCommand extends GeneratorCommand
 
     /**
      * Execute the console command.
+     *
+     * Returns an exit code. The command used to return true and false, which
+     * Artisan casts to 1 and 0: a failure on success and a success on failure.
      */
-    public function handle()
+    public function handle(): int
     {
         $name = $this->qualifyClass($this->getNameInput());
         $path = $this->getPath($name);
@@ -35,7 +38,7 @@ class MakeAchievementCommand extends GeneratorCommand
         if ($this->files->exists($path)) {
             $this->error($this->type.' already exists!');
 
-            return false;
+            return self::FAILURE;
         }
 
         // Generate achievement key from class name
@@ -46,7 +49,7 @@ class MakeAchievementCommand extends GeneratorCommand
         if ($this->isKeyDuplicate($key)) {
             $this->error("Achievement key '{$key}' already exists! Choose a different name.");
 
-            return false;
+            return self::FAILURE;
         }
 
         // Make the directory
@@ -106,7 +109,7 @@ class MakeAchievementCommand extends GeneratorCommand
             $this->line('Prerequisites: <info>'.implode(', ', $prerequisite).'</info>');
         }
 
-        return true;
+        return self::SUCCESS;
     }
 
     /**

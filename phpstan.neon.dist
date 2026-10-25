@@ -29,6 +29,13 @@ parameters:
             message: '#^Class App\\Models\\User not found\.$#'
             path: config/merit.php
 
+        # GeneratorCommand documents handle() as returning bool|null, but
+        # Command::execute() casts whatever handle() returns to the exit code.
+        # Returning true for success made a successful run exit 1.
+        -
+            identifier: method.childReturnType
+            path: src/Commands/MakeAchievementCommand.php
+
         # Pest's arch DSL is not statically typed.
         -
             message: '#^Call to an undefined method Pest\\PendingCalls\\TestCall::expect\(\)\.$#'
