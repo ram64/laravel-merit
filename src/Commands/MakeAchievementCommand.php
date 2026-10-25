@@ -70,9 +70,11 @@ class MakeAchievementCommand extends GeneratorCommand
         // Replace the key placeholder
         $stub = str_replace('DummyKey', $key, $stub);
 
-        // Replace name and description placeholders
-        $stub = str_replace('DummyName', $achievementName, $stub);
-        $stub = str_replace('DummyDescription', $description, $stub);
+        // Replace name and description placeholders. Both sit inside
+        // single-quoted strings, so an apostrophe in the description used to
+        // end the string early and leave a class PHP could not parse.
+        $stub = str_replace('DummyName', $this->escapeForStub($achievementName), $stub);
+        $stub = str_replace('DummyDescription', $this->escapeForStub($description), $stub);
 
         // Replace goal placeholder
         $stub = str_replace('DummyGoal', (string) $goal, $stub);
@@ -86,9 +88,9 @@ class MakeAchievementCommand extends GeneratorCommand
         if ($prerequisite === null) {
             $prerequisiteValue = 'null';
         } elseif (is_string($prerequisite)) {
-            $prerequisiteValue = "'{$prerequisite}'";
+            $prerequisiteValue = var_export($prerequisite, true);
         } else {
-            $prerequisiteValue = "['".implode("', '", $prerequisite)."']";
+            $prerequisiteValue = '['.implode(', ', array_map(fn ($key) => var_export($key, true), $prerequisite)).']';
         }
         $stub = str_replace('DummyPrerequisite', $prerequisiteValue, $stub);
 
@@ -110,6 +112,14 @@ class MakeAchievementCommand extends GeneratorCommand
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Escape a value for a single-quoted PHP string in the stub.
+     */
+    protected function escapeForStub(string $value): string
+    {
+        return addcslashes($value, "'\\");
     }
 
     /**

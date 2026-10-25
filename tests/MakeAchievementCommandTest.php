@@ -83,6 +83,32 @@ it('marks a secret achievement secret without making it qualify', function () {
         ->toBe(['secret' => true, 'qualifies' => false, 'goal' => 3]);
 });
 
+it('generates a loadable class from a description with quotes and a prerequisite', function () {
+    $test = $this;
+    /** @var TestCase $test */
+    $test->artisan('make:merit-achievement', ['name' => 'SecondCatch'])
+        ->expectsQuestion('What is the goal for this achievement? (default: 1)', '1')
+        ->expectsConfirmation('Does this achievement have prerequisites?', 'yes')
+        ->expectsConfirmation('Multiple prerequisites?', 'no')
+        ->expectsQuestion('Enter prerequisite achievement key', 'first_catch')
+        ->expectsQuestion('Enter achievement description (default: Achieve Second Catch)', "Land the angler's second fish \\o/")
+        ->expectsConfirmation('Should this be a secret achievement? (hidden until unlocked)', 'no')
+        ->assertSuccessful();
+
+    $file = generatedPath().'/SecondCatch.php';
+    $class = 'Generated\\Achievements\\SecondCatch';
+
+    $process = new Process([PHP_BINARY, '-r',
+        'require '.var_export(realpath(__DIR__.'/../vendor/autoload.php'), true).';'
+        .'require '.var_export($file, true).';'
+        .'echo json_encode([\\'.$class.'::description(), \\'.$class.'::prerequisite()]);',
+    ]);
+    $process->run();
+
+    expect($process->isSuccessful())->toBeTrue($process->getErrorOutput().$process->getOutput())
+        ->and(json_decode($process->getOutput(), true))->toBe(["Land the angler's second fish \\o/", 'first_catch']);
+});
+
 it('exits successfully when it writes the class', function () {
     makeAchievement($this, 'FirstCatch')->assertSuccessful();
 });
