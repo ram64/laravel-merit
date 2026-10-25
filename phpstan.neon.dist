@@ -23,12 +23,6 @@ parameters:
             identifier: larastan.noEnvCallsOutsideOfConfig
             path: config/merit.php
 
-        # The default achiever model is the consuming application's User, which
-        # by definition does not exist inside this package.
-        -
-            message: '#^Class App\\Models\\User not found\.$#'
-            path: config/merit.php
-
         # GeneratorCommand documents handle() as returning bool|null, but
         # Command::execute() casts whatever handle() returns to the exit code.
         # Returning true for success made a successful run exit 1.

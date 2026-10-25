@@ -69,10 +69,7 @@
         "laravel": {
             "providers": [
                 "Ram64\\LaravelMerit\\LaravelMeritServiceProvider"
-            ],
-            "aliases": {
-                "LaravelMerit": "Ram64\\LaravelMerit\\Facades\\LaravelMerit"
-            }
+            ]
         }
     },
     "prefer-stable": true

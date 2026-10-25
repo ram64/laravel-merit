@@ -1,14 +1,7 @@
 <?php
 
-use App\Models\User;
-
 return [
 
-    /**
-     * The default Achiever model.
-     * This model should use the CanAchieve trait.
-     */
-    'achiever_model' => env('MERIT_ACHIEVER_MODEL', User::class),
     /**
      * The table used to store achiever achievements.
      */
