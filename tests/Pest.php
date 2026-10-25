@@ -48,6 +48,8 @@ function achievementKeys(array $achievements): array
  * Write a progress row directly, bypassing the tracker.
  *
  * Used to set up prerequisite state without relying on the code under test.
+ *
+ * @param  array<model-property<AchieverAchievement>, mixed>  $attributes
  */
 function storeProgress(User $user, string $key, array $attributes = []): AchieverAchievement
 {
