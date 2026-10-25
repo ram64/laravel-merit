@@ -9,6 +9,9 @@ use Ram64\LaravelMerit\Models\AchieverAchievement;
 use Ram64\LaravelMerit\Services\AchievementTracker;
 use Ram64\LaravelMerit\Tests\Fixtures\Achievements\Progress\CountingAchievement;
 
+use function Pest\Laravel\travelBack;
+use function Pest\Laravel\travelTo;
+
 beforeEach(fn () => useAchievements('Progress'));
 
 describe('lookups', function () {
@@ -230,10 +233,10 @@ describe('incrementProgress()', function () {
     it('leaves the unlock time alone on later calls', function () {
         $user = createUser();
 
-        $this->travelTo(now()->subDay());
+        travelTo(now()->subDay());
         $user->unlockOrProgress(CountingAchievement::class, 3, [], 3);
         $unlockedAt = $user->achievements()->first()->unlocked_at->toDateTimeString();
-        $this->travelBack();
+        travelBack();
 
         $user->unlockOrProgress(CountingAchievement::class, 1, [], 3);
 
