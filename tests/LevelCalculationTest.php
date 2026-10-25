@@ -44,6 +44,13 @@ describe('static thresholds', function () {
             ->and($user->experiencer->getExperienceForNextLevel())->toBe(PHP_INT_MAX);
     });
 
+    it('reports progress at the top of the ladder as complete', function () {
+        $user = createUser();
+        $user->gainExperience(8000);
+
+        expect($user->getExperienceProgress())->toBe(['current' => 500, 'required' => 0, 'percentage' => 100]);
+    });
+
     it('precalculates the configured thresholds unchanged', function () {
         expect(ExperienceManager::precalculateLevelRequirements())
             ->toBe(config('merit.experience.level_thresholds'));
@@ -68,7 +75,7 @@ describe('dynamic formula', function () {
     ]);
 
     it('reports the experience each level costs', function () {
-        expect(ExperienceManager::getExperienceForLevel(1))->toBe(50)
+        expect(ExperienceManager::getExperienceForLevel(1))->toBe(0)
             ->and(ExperienceManager::getExperienceForLevel(2))->toBe(200)
             ->and(ExperienceManager::getExperienceForLevel(4))->toBe(800);
     });
@@ -87,6 +94,17 @@ describe('dynamic formula', function () {
             ->and($progress['percentage'])->toEqual(0);
     });
 
+    it('has no next level to reach at max_level', function () {
+        config()->set('merit.experience.max_level', 3);
+
+        $user = createUser();
+        $user->gainExperience(1000);
+
+        expect($user->getLevel())->toBe(3)
+            ->and($user->experiencer->getExperienceForNextLevel())->toBe(PHP_INT_MAX)
+            ->and($user->getExperienceProgress())->toMatchArray(['required' => 0, 'percentage' => 100]);
+    });
+
     it('levels an achiever up through the formula', function () {
         $user = createUser();
 
@@ -99,21 +117,21 @@ describe('dynamic formula', function () {
         config()->set('merit.experience.max_level', 4);
 
         expect(ExperienceManager::precalculateLevelRequirements())
-            ->toBe([1 => 50, 2 => 200, 3 => 450, 4 => 800]);
+            ->toBe([1 => 0, 2 => 200, 3 => 450, 4 => 800]);
     });
 
     it('precalculates to an explicit ceiling when given one', function () {
         config()->set('merit.experience.max_level', 100);
 
-        expect(ExperienceManager::precalculateLevelRequirements(2))->toBe([1 => 50, 2 => 200]);
+        expect(ExperienceManager::precalculateLevelRequirements(2))->toBe([1 => 0, 2 => 200]);
     });
 
     it('caches the precalculated requirements', function () {
-        expect(ExperienceManager::getCachedLevelRequirements(2))->toBe([1 => 50, 2 => 200]);
+        expect(ExperienceManager::getCachedLevelRequirements(2))->toBe([1 => 0, 2 => 200]);
 
         config()->set('merit.experience.level_formula', '999 * $level');
 
-        expect(ExperienceManager::getCachedLevelRequirements(2))->toBe([1 => 50, 2 => 200]);
+        expect(ExperienceManager::getCachedLevelRequirements(2))->toBe([1 => 0, 2 => 200]);
     });
 });
 

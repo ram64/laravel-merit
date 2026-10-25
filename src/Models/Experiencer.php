@@ -159,6 +159,12 @@ class Experiencer extends Model
         $method = config('merit.experience.level_calculation', 'static');
 
         if ($method === 'dynamic') {
+            // calculateLevel() never goes past max_level, so neither does the
+            // next level: PHP_INT_MAX, as at the top of a static ladder.
+            if ($this->level >= config('merit.experience.max_level', 100)) {
+                return PHP_INT_MAX;
+            }
+
             $formula = config('merit.experience.level_formula', '50 * $level * $level');
 
             return $this->evaluateFormula($formula, $nextLevel);
@@ -180,6 +186,17 @@ class Experiencer extends Model
         // achiever below the floor of their own level, at negative progress.
         $currentLevelExp = $this->level <= 1 ? 0 : $this->getExperienceForLevel($this->level);
         $nextLevelExp = $this->getExperienceForNextLevel();
+
+        // At the top there is nothing left to reach. Measuring against
+        // PHP_INT_MAX reported a required figure in the quintillions and a
+        // percentage of zero to an achiever who had finished.
+        if ($nextLevelExp === PHP_INT_MAX) {
+            return [
+                'current' => $this->experience - $currentLevelExp,
+                'required' => 0,
+                'percentage' => 100,
+            ];
+        }
 
         $progress = $this->experience - $currentLevelExp;
         $required = $nextLevelExp - $currentLevelExp;
@@ -203,6 +220,13 @@ class Experiencer extends Model
         $method = config('merit.experience.level_calculation', 'static');
 
         if ($method === 'dynamic') {
+            // Everyone starts at level 1 with nothing: calculateLevel() gives
+            // level 1 for anything short of level 2, whatever the formula
+            // says about level 1 itself.
+            if ($level <= 1) {
+                return 0;
+            }
+
             $formula = config('merit.experience.level_formula', '50 * $level * $level');
 
             return $this->evaluateFormula($formula, $level);

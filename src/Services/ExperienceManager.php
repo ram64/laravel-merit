@@ -98,8 +98,9 @@ class ExperienceManager
             $formula = $config['level_formula'];
             $maxLevel = $maxLevel ?? $config['max_level'] ?? 100; // Use config max_level, fallback to 100
 
+            // Level 1 needs nothing, as in Experiencer::getExperienceForLevel().
             for ($level = 1; $level <= $maxLevel; $level++) {
-                $requirements[$level] = static::evaluateFormula($formula, $level);
+                $requirements[$level] = $level === 1 ? 0 : static::evaluateFormula($formula, $level);
             }
         } else {
             // For static levels, just return the configured thresholds
