@@ -33,13 +33,16 @@ jobs:
         php: [8.4, 8.3]
         laravel: [13.*, 12.*, 11.*]
         stability: [prefer-lowest, prefer-stable]
+        # Testbench floors, not just majors: prefer-lowest would otherwise
+        # pick a Testbench 10 older than 10.6, whose teardown passes PHPUnit
+        # 12.3.4+ a null test case and fails every test file.
         include:
           - laravel: 13.*
-            testbench: 11.*
+            testbench: '^11.0'
           - laravel: 12.*
-            testbench: 10.*
+            testbench: '^10.6'
           - laravel: 11.*
-            testbench: 9.*
+            testbench: '^9.13'
 
     name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.stability }} - ${{ matrix.os }}
 
