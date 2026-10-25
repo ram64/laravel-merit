@@ -135,7 +135,8 @@ class AchieverAchievement extends Model
         if (! $wasStarted && $this->progress > 0) {
             $this->dispatchEvent(new AchievementStarted($this, $achiever));
         } elseif ($this->progress > 0 && $this->progress < $this->goal) {
-            $this->dispatchEvent(new AchievementProgressed($this, $achiever, $amount));
+            // The new total, as the tracker sends it, not the size of the step.
+            $this->dispatchEvent(new AchievementProgressed($this, $achiever, $this->progress));
         }
 
         if ($this->progress === $this->goal) {

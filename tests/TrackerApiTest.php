@@ -156,6 +156,17 @@ describe('unlockOrProgress()', function () {
         Event::assertDispatchedTimes(AchievementProgressed::class, 1);
     });
 
+    it('reports the new total on the progressed event, as the tracker does', function () {
+        Event::fake([AchievementProgressed::class]);
+
+        $user = createUser();
+
+        $user->unlockOrProgress(CountingAchievement::class, 1, [], 3);
+        $user->unlockOrProgress(CountingAchievement::class, 1, [], 3);
+
+        Event::assertDispatched(AchievementProgressed::class, fn ($event) => $event->progress === 2);
+    });
+
     it('unlocks once the increments reach the goal', function () {
         Event::fake([AchievementCompleted::class, AchievementUnlocked::class]);
 
