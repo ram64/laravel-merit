@@ -814,10 +814,156 @@ class AchievementTracker
             return [];
         }
 
-        $displayData = [
+        // One read of the row, held while the payload is built, rather than
+        // one per accessor that asks for it.
+        $displayData = static::withRecords(
+            $achiever,
+            [$achievementKey => $achievementClass::getAchievementRecord($achiever)],
+            fn () => static::displayPayload(
+                $achiever,
+                $achievementClass,
+                $achievementClass::getDisplayName($achiever),
+                $achievementClass::getDisplayDescription($achiever)
+            )
+        );
+
+        // Cache for shorter duration if not unlocked (progress may change)
+        $cacheDuration = static::getDisplayCacheTtl($displayData);
+        Cache::put($cacheKey, $displayData, $cacheDuration);
+
+        static::debug('Cached achievement display data', [
+            'achievement' => $achievementKey,
+            'achiever_id' => $achiever->getKey(),
+            'cache_duration' => $cacheDuration,
+        ]);
+
+        return $displayData;
+    }
+
+    /**
+     * Get the display payload for many achievements at once.
+     *
+     * The batch form of getAchievementDisplay(), with the same output for
+     * every key. Cached payloads come back in one cache round trip; the rest
+     * are built from one query for all of the achiever's rows and one batch
+     * read of their text, then cached together.
+     *
+     * Unknown keys are omitted rather than returned as empty arrays.
+     *
+     * @param  array<int, string>  $achievementKeys
+     * @return array<string, array<string, mixed>>
+     */
+    public static function getAchievementDisplayMany(Model $achiever, array $achievementKeys): array
+    {
+        $definitions = [];
+
+        foreach (array_unique($achievementKeys) as $achievementKey) {
+            $achievementClass = static::getAchievement($achievementKey);
+
+            if ($achievementClass) {
+                $definitions[$achievementKey] = $achievementClass;
+            }
+        }
+
+        if ($definitions === []) {
+            return [];
+        }
+
+        $cacheKeys = [];
+
+        foreach ($definitions as $achievementKey => $achievementClass) {
+            $cacheKeys[$achievementKey] = static::getDisplayCacheKey($achiever, $achievementKey);
+        }
+
+        $cached = Cache::many(array_values($cacheKeys));
+        $display = [];
+        $missing = [];
+
+        foreach ($cacheKeys as $achievementKey => $cacheKey) {
+            if (($cached[$cacheKey] ?? null) !== null) {
+                $display[$achievementKey] = $cached[$cacheKey];
+            } else {
+                $missing[$achievementKey] = $definitions[$achievementKey];
+            }
+        }
+
+        if ($missing !== []) {
+            $rows = static::fetchRecords($achiever);
+
+            $held = [];
+
+            foreach (array_keys($missing) as $achievementKey) {
+                $held[$achievementKey] = $rows[$achievementKey] ?? null;
+            }
+
+            // The secret gate in the text read asks about unlocks; answer it
+            // from the same rows rather than another query.
+            $openedKeys = ! AchievementDefinition::hasUnlockedKeysWindow($achiever);
+
+            if ($openedKeys) {
+                AchievementDefinition::primeUnlockedKeys($achiever, array_keys(array_filter(
+                    $rows,
+                    fn (AchieverAchievement $record) => $record->unlocked_at !== null
+                )));
+            }
+
+            try {
+                $built = static::withRecords($achiever, $held, function () use ($achiever, $missing) {
+                    $text = static::getDisplayTextMany($achiever, array_keys($missing));
+                    $built = [];
+
+                    foreach ($missing as $achievementKey => $achievementClass) {
+                        $built[$achievementKey] = static::displayPayload(
+                            $achiever,
+                            $achievementClass,
+                            $text[$achievementKey]['name'],
+                            $text[$achievementKey]['description']
+                        );
+                    }
+
+                    return $built;
+                });
+            } finally {
+                if ($openedKeys) {
+                    AchievementDefinition::flushUnlockedKeys($achiever);
+                }
+            }
+
+            $byTtl = [];
+
+            foreach ($built as $achievementKey => $payload) {
+                $display[$achievementKey] = $payload;
+                $byTtl[static::getDisplayCacheTtl($payload)][$cacheKeys[$achievementKey]] = $payload;
+            }
+
+            foreach ($byTtl as $ttl => $payloads) {
+                Cache::putMany($payloads, $ttl);
+            }
+        }
+
+        static::debug('Batch display read', [
+            'achiever_id' => $achiever->getKey(),
+            'requested' => count($achievementKeys),
+            'resolved' => count($display),
+            'built' => count($missing),
+        ]);
+
+        // In the order asked for.
+        return array_replace(array_intersect_key($cacheKeys, $display), $display);
+    }
+
+    /**
+     * The display payload for one achievement, from its definition.
+     *
+     * @param  class-string<BaseAchievementDefinition>  $achievementClass
+     * @return array<string, mixed>
+     */
+    protected static function displayPayload(Model $achiever, string $achievementClass, string $name, string $description): array
+    {
+        return [
             'key' => $achievementClass::key(),
-            'name' => $achievementClass::getDisplayName($achiever),
-            'description' => $achievementClass::getDisplayDescription($achiever),
+            'name' => $name,
+            'description' => $description,
             'goal' => $achievementClass::goal(),
             'progress' => $achievementClass::getProgress($achiever),
             'progress_percentage' => $achievementClass::getProgressPercentage($achiever),
@@ -828,18 +974,44 @@ class AchievementTracker
             'is_visible' => $achievementClass::isVisibleTo($achiever),
             'category' => $achievementClass::category(),
         ];
+    }
 
-        // Cache for shorter duration if not unlocked (progress may change)
-        $cacheDuration = $displayData['is_unlocked'] ? static::getCacheTtl() : static::getCacheTtl() / 2;
-        Cache::put($cacheKey, $displayData, $cacheDuration);
+    /**
+     * Seconds to cache a display payload: half as long until it is unlocked,
+     * since progress may still change.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    protected static function getDisplayCacheTtl(array $payload): int
+    {
+        return $payload['is_unlocked'] ? static::getCacheTtl() : intdiv(static::getCacheTtl(), 2);
+    }
 
-        static::debug('Cached achievement display data', [
-            'achievement' => $achievementKey,
-            'achiever_id' => $achiever->getKey(),
-            'cache_duration' => $cacheDuration,
-        ]);
+    /**
+     * Run the callback with the given rows held for the achiever, unless a
+     * caller above already holds some.
+     *
+     * @template TResult
+     *
+     * @param  array<string, AchieverAchievement|null>  $records
+     * @param  callable(): TResult  $callback
+     * @return TResult
+     */
+    protected static function withRecords(Model $achiever, array $records, callable $callback): mixed
+    {
+        $opened = ! AchievementDefinition::hasRecordsWindow($achiever);
 
-        return $displayData;
+        if ($opened) {
+            AchievementDefinition::primeRecords($achiever, $records);
+        }
+
+        try {
+            return $callback();
+        } finally {
+            if ($opened) {
+                AchievementDefinition::flushRecords($achiever);
+            }
+        }
     }
 
     /**
@@ -936,6 +1108,15 @@ class AchievementTracker
         Cache::forget(static::getNameCacheKey($achiever, $achievementKey));
         Cache::forget(static::getDescriptionCacheKey($achiever, $achievementKey));
         Cache::forget(static::getRecordCacheKey($achiever, $achievementKey));
+    }
+
+    /**
+     * Clear one achievement's caches for an achiever, and the achiever's own
+     */
+    public static function clearAchievementCache($achiever, string $achievementKey): void
+    {
+        Cache::forget(static::getUserCacheKey($achiever));
+        static::forgetAchievementCaches($achiever, $achievementKey);
     }
 
     /**

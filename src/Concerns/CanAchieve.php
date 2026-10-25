@@ -24,8 +24,10 @@ trait CanAchieve
 
         $achievement->incrementProgress($amount, $this);
 
-        // Clear all Merit caches for this user
-        $this->clearAchievementCaches();
+        // Only this achievement changed. Clearing every achievement's caches
+        // here cost four cache deletes per defined achievement on every call.
+        AchievementTracker::clearAchievementCache($this, $achievementClass::key());
+        $this->forgetCustomAchievementCache();
     }
 
     /**
@@ -36,9 +38,16 @@ trait CanAchieve
         // Clear the new comprehensive caches
         AchievementTracker::clearUserCache($this);
 
-        // Keep backward compatibility with custom cache keys. Achiever models
-        // are not required to define cacheKey(), and calling it blind would
-        // fall through Model::__call and throw.
+        $this->forgetCustomAchievementCache();
+    }
+
+    /**
+     * Keep backward compatibility with custom cache keys. Achiever models are
+     * not required to define cacheKey(), and calling it blind would fall
+     * through Model::__call and throw.
+     */
+    protected function forgetCustomAchievementCache(): void
+    {
         $customCacheKey = method_exists($this, 'cacheKey') ? $this->cacheKey() : null;
 
         Cache::forget($customCacheKey ?? "achievements_{$this->getKey()}");

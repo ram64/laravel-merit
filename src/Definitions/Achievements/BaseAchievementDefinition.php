@@ -22,6 +22,14 @@ abstract class BaseAchievementDefinition
     private static array $unlockedKeys = [];
 
     /**
+     * Stored rows per achiever, keyed by achievement key, held for the length
+     * of an open records window. A key held as null means "no row".
+     *
+     * @var array<string, array<string, AchieverAchievement|null>>
+     */
+    private static array $records = [];
+
+    /**
      * Unique identifier for the achievement
      */
     abstract public static function key(): string;
@@ -114,6 +122,42 @@ abstract class BaseAchievementDefinition
                 ->pluck('achievement_key')
                 ->all()
         );
+    }
+
+    /**
+     * Hold rows already read for an achiever, so getAchievementRecord()
+     * answers from them rather than from the cache.
+     *
+     * Building one display payload asks for the same row five times over
+     * (progress, percentage, completed, unlocked, started), and a page of
+     * them asks for every row. With the rows held, each is read once, and
+     * every accessor still goes through the definition, so an override still
+     * applies. Keys not held fall through to the usual lookup.
+     *
+     * Pair with flushRecords() in a finally. While a window is open, a write
+     * to a held row will not be seen.
+     *
+     * @param  array<string, AchieverAchievement|null>  $records
+     */
+    public static function primeRecords(Model $achiever, array $records): void
+    {
+        self::$records[self::achieverKey($achiever)] = $records;
+    }
+
+    /**
+     * Close the window opened by primeRecords().
+     */
+    public static function flushRecords(Model $achiever): void
+    {
+        unset(self::$records[self::achieverKey($achiever)]);
+    }
+
+    /**
+     * Whether a records window is already open for this achiever.
+     */
+    public static function hasRecordsWindow(Model $achiever): bool
+    {
+        return isset(self::$records[self::achieverKey($achiever)]);
     }
 
     /**
@@ -311,6 +355,12 @@ abstract class BaseAchievementDefinition
      */
     public static function getAchievementRecord(Model $achiever): ?AchieverAchievement
     {
+        $held = self::$records[self::achieverKey($achiever)] ?? [];
+
+        if (array_key_exists(static::key(), $held)) {
+            return $held[static::key()];
+        }
+
         $cacheKey = 'merit:record:'.get_class($achiever).':'.$achiever->getKey().':'.static::key();
 
         return Cache::remember($cacheKey, config('merit.cache_ttl', 10) * 60, function () use ($achiever) {
