@@ -33,9 +33,11 @@ jobs:
         # 8.2 is missing deliberately: composer.json allows it, but Pest 4
         # requires PHP >= 8.3, so the suite cannot run there.
         php: [8.4, 8.3]
-        laravel: [12.*, 11.*]
+        laravel: [13.*, 12.*, 11.*]
         stability: [prefer-lowest, prefer-stable]
         include:
+          - laravel: 13.*
+            testbench: 11.*
           - laravel: 12.*
             testbench: 10.*
           - laravel: 11.*
