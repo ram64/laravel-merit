@@ -91,8 +91,13 @@ return [
 
         /**
          * Dynamic level formula (only used when level_calculation is 'dynamic')
-         * Formula should return the experience required for a given level
-         * Available variables: $level
+         * Formula should return the experience required for a given level.
+         * Level 1 always needs 0.
+         *
+         * Either an arithmetic expression using $level, numbers,
+         * + - * / % ** and parentheses, and the functions abs, ceil, exp,
+         * floor, intdiv, log, max, min, pow, round and sqrt; or the name of
+         * an invokable class that takes the level and returns the experience.
          */
         'level_formula' => '50 * $level * $level', // Example: quadratic growth
 

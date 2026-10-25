@@ -5,6 +5,7 @@ namespace Ram64\LaravelMerit\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Carbon;
+use Ram64\LaravelMerit\Support\LevelFormula;
 
 /**
  * The experience and level held by one experiencer.
@@ -143,11 +144,7 @@ class Experiencer extends Model
      */
     protected function evaluateFormula(string $formula, int $level): int
     {
-        // Simple formula evaluation - replace $level with actual value
-        $expression = str_replace('$level', (string) $level, $formula);
-
-        // Use eval for simple expressions (could be improved with a proper expression parser)
-        return (int) eval("return $expression;");
+        return LevelFormula::evaluate($formula, $level);
     }
 
     /**
