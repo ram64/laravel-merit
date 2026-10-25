@@ -26,3 +26,20 @@ it('creates the experience tables under the names the models read', function () 
         ->and((new Experiencer)->getTable())->toBe('custom_experiencers')
         ->and((new ExperienceLog)->getTable())->toBe('custom_experience_logs');
 });
+
+it('indexes the morph columns once per table', function (string $table, string $morph) {
+    // morphs() already indexes (type, id). A second plain index over the same
+    // two columns, in either order, only costs writes.
+    $plain = array_filter(
+        Schema::getIndexes($table),
+        fn (array $index) => ! $index['unique']
+            && ! $index['primary']
+            && collect($index['columns'])->sort()->values()->all() === collect(["{$morph}_id", "{$morph}_type"])->sort()->values()->all()
+    );
+
+    expect($plain)->toHaveCount(1);
+})->with([
+    ['achiever_achievements', 'achiever'],
+    ['experiencers', 'experiencer'],
+    ['experience_logs', 'experiencer'],
+]);
