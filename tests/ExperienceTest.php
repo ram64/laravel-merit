@@ -335,3 +335,16 @@ it('exposes progress towards the next level', function () {
         ->and($progress['required'])->toBe(150)
         ->and($progress['percentage'])->toBe(50.0);
 });
+
+it('never reports negative progress after a loss below the level threshold', function () {
+    $user = createUser();
+    $user->gainExperience(300);
+    $user->loseExperience(250);
+
+    $progress = $user->getExperienceProgress();
+
+    // Still level 3 (from 250) on 50 experience; level 4 is at 500.
+    expect($user->getLevel())->toBe(3)
+        ->and($progress['percentage'])->toEqual(0)
+        ->and($progress['required'] - $progress['current'])->toBe(450);
+});

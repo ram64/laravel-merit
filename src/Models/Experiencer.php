@@ -184,10 +184,14 @@ class Experiencer extends Model
         $progress = $this->experience - $currentLevelExp;
         $required = $nextLevelExp - $currentLevelExp;
 
+        // Levels never fall with experience, so a loss can leave an achiever
+        // below their own level's threshold. The percentage is a bar and stops
+        // at 0. current stays negative, so required - current is still the
+        // distance to the next level.
         return [
             'current' => $progress,
             'required' => $required,
-            'percentage' => $required > 0 ? min(100, ($progress / $required) * 100) : 100,
+            'percentage' => $required > 0 ? max(0, min(100, ($progress / $required) * 100)) : 100,
         ];
     }
 
