@@ -18,10 +18,13 @@ return [
      */
     'cache_ttl' => env('MERIT_CACHE_TTL', 10),
     /**
-     * Whether to queue events or dispatch them synchronously.
+     * Whether AchievementTracker::check() runs the check on a queued job
+     * (ProcessAchievementCheck) or inline, and where that job is sent.
+     * Null for the connection or queue means the application's default.
      */
     'queue_achievements' => env('MERIT_QUEUE_EVENTS', default: false),
     'queue_connection' => env('MERIT_QUEUE_CONNECTION', null),
+    'queue_name' => env('MERIT_QUEUE_NAME', null),
 
     /**
      * Namespace and path for achievement definitions. This is used for auto-discovery.

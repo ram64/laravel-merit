@@ -199,6 +199,19 @@ describe('check()', function () {
         expect(AchieverAchievement::count())->toBe(0);
     });
 
+    it('sends the job to the configured connection and queue', function () {
+        useAchievements('Progress');
+        config()->set('merit.queue_achievements', true);
+        config()->set('merit.queue_connection', 'redis');
+        config()->set('merit.queue_name', 'achievements');
+
+        Queue::fake();
+
+        AchievementTracker::check(createUser());
+
+        Queue::assertPushed(ProcessAchievementCheck::class, fn ($job) => $job->connection === 'redis' && $job->queue === 'achievements');
+    });
+
     it('processes inline when queueing is disabled', function () {
         useAchievements('Progress');
         config()->set('merit.queue_achievements', false);
