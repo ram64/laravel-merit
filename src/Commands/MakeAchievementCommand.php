@@ -125,6 +125,22 @@ class MakeAchievementCommand extends GeneratorCommand
     }
 
     /**
+     * Qualify the class name against the configured achievements namespace.
+     *
+     * The parent keeps prefixing the default namespace until the name starts
+     * with the application's root namespace, so a configured namespace outside
+     * it (for example a package's own) never terminated. getPath() writes the
+     * file straight into the achievements directory, so the class goes
+     * straight into the matching namespace, which keeps the two PSR-4 aligned.
+     */
+    protected function qualifyClass($name)
+    {
+        $namespace = config('merit.achievements_namespace', $this->rootNamespace().'Achievements\\');
+
+        return rtrim($namespace, '\\').'\\'.class_basename(str_replace('/', '\\', $name));
+    }
+
+    /**
      * Get the destination class path.
      */
     protected function getPath($name)
