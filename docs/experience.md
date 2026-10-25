@@ -1,6 +1,6 @@
 # Experience System
 
-Laravel Merit includes a comprehensive experience and leveling system that allows any model to gain experience points and level up.
+Any model can earn experience points (XP) and levels.
 
 ## Setup
 
@@ -12,86 +12,91 @@ use Ram64\LaravelMerit\Concerns\CanExperience;
 class User extends Authenticatable
 {
     use CanExperience;
-
-    // Your model code...
 }
 ```
 
-### 2. Run the migrations
+### 2. Publish and run the migrations
 
 ```bash
+php artisan vendor:publish --tag="merit-migrations"
 php artisan migrate
 ```
 
-This creates two tables:
-- `experiencers` - Stores experience and level data for models
-- `experience_logs` - Logs all experience changes (optional, can be disabled)
+Two of the tables are for experience:
+
+- `experiencers`: one row per model, holding its experience and level. It is
+  created the first time the model's experience is read or changed.
+- `experience_logs`: one row per change, unless logging is turned off.
 
 ## Basic Usage
 
-### Award Experience
+### Award or remove experience
 
 ```php
-// Using the trait directly
 $user->gainExperience(100, 'Completed tutorial');
+$user->loseExperience(50, 'Penalty for rule violation');
 
-// Using the ExperienceManager service
+// The same through the service
 ExperienceManager::awardExperience($user, 100, 'Completed tutorial');
-```
-
-### Remove Experience
-
-```php
-// Using the trait directly
-$user->loseExperience(50, 'Penalty for rule violation');
-
-// Using the ExperienceManager service
 ExperienceManager::deductExperience($user, 50, 'Penalty for rule violation');
 ```
 
-### Get Experience Data
+An amount of zero or less is refused (the method returns `false`).
+Experience never goes below 0.
+
+### Read experience
 
 ```php
-$experience = $user->getExperience(); // Current XP points
-$level = $user->getLevel(); // Current level
-$progress = $user->getExperienceProgress(); // Progress to next level
+$user->getExperience();          // current XP
+$user->getLevel();               // current level
+$user->getExperienceProgress();  // ['current' => ..., 'required' => ..., 'percentage' => ...]
 
-// Or get all cached data at once
-$data = $user->getCachedExperienceData();
+// Everything at once, cached for experience.cache_ttl minutes
+$user->getCachedExperienceData();
 ```
 
-### Set Experience or Level Directly
+`getExperienceProgress()` measures from the start of the current level:
+`current` is the XP earned into it, `required` the size of the step to the
+next level, and `percentage` the bar to draw, between 0 and 100.
+`required - current` is the XP still needed for the next level. At the top
+of the ladder there is no next level: `required` is 0 and `percentage` is
+100.
+
+### Set experience or level directly
 
 ```php
-// Set experience to a specific amount
-$user->setExperience(500, 'Admin adjustment');
-
-// Set level directly (experience adjusts automatically)
+$user->setExperience(500, 'Admin adjustment');   // a gain or a loss of the difference
 $user->setLevel(5, 'Promoted by admin');
-
-// Level decreases are controlled by config (see below)
-$user->setLevel(3, 'Level correction'); // Only works if allow_level_decrease is true
 ```
 
-### Remove Experience
+## How levels move
 
-```php
-// Using the trait directly
-$user->loseExperience(50, 'Penalty for rule violation');
+- **Gaining** experience can raise the level, by several levels at once,
+  firing one `LevelledUp`.
+- **Losing** experience never lowers the level. An achiever can end up below
+  their own level's threshold; their progress then reads 0% until they climb
+  back past it, and `current` goes negative by the shortfall.
+- **`setLevel()` upwards** raises experience to the target level's threshold
+  if it is below it.
+- **`setLevel()` downwards** is refused (it returns `true` and changes
+  nothing) unless `experience.allow_level_decrease` is true. When allowed, it
+  also brings experience down to the target level's threshold, firing
+  `ExperienceLost` for the difference, so the next gain does not recalculate
+  the old level. There is no level-down event.
+- **Changing the thresholds or the formula** leaves stored levels as they
+  are. The next gain recalculates the level, and even then it never drops.
 
-// Using the ExperienceManager service
-ExperienceManager::deductExperience($user, 50, 'Penalty for rule violation');
+Each change re-reads the experiencer row under a row lock inside a
+transaction, so two changes at once (two queued jobs, say) cannot overwrite
+each other. Events fire after the change is committed.
 
 ## Level Calculation
 
-Laravel Merit supports two level calculation methods: static thresholds and dynamic formulas.
+Set `experience.level_calculation` to `static` or `dynamic`.
 
-### Static Thresholds (Default)
-
-Configure specific experience requirements for each level:
+### Static thresholds (default)
 
 ```php
-// config/merit.php
 'experience' => [
     'level_calculation' => 'static',
     'level_thresholds' => [
@@ -100,244 +105,157 @@ Configure specific experience requirements for each level:
         3 => 250,
         4 => 500,
         5 => 1000,
-        // Add more levels...
     ],
 ],
 ```
 
-### Dynamic Formulas
+List the levels in ascending order. The top of the list is the highest level.
 
-Use mathematical formulas for level calculation:
+### Dynamic formula
 
 ```php
-// config/merit.php
 'experience' => [
     'level_calculation' => 'dynamic',
-    'level_formula' => '50 * $level * $level', // Quadratic growth
+    'level_formula' => '50 * $level * $level',
+    'max_level' => 100,
 ],
 ```
 
-Available variables: `$level`
+The formula gives the XP needed to reach a level. Level 1 always needs 0.
+It is an arithmetic expression using `$level`, numbers, `+ - * / % **` and
+parentheses, and the functions `abs`, `ceil`, `exp`, `floor`, `intdiv`,
+`log`, `max`, `min`, `pow`, `round` and `sqrt`. Anything else is refused with
+an `InvalidArgumentException`; the formula is never passed to `eval()`.
 
-**Pre-calculating Requirements:**
+For a ladder arithmetic cannot express, give the name of an invokable class
+instead. Unlike a closure, a class name survives `php artisan config:cache`.
+
 ```php
-// Generate lookup table for levels 1-100
-$requirements = ExperienceManager::precalculateLevelRequirements(100);
-// Result: [1 => 50, 2 => 200, 3 => 450, 4 => 800, ...]
+'level_formula' => App\Support\LevelLadder::class,
+
+class LevelLadder
+{
+    public function __invoke(int $level): int
+    {
+        return /* XP needed for $level */;
+    }
+}
 ```
+
+### Level requirements
+
+```php
+ExperienceManager::precalculateLevelRequirements();    // [1 => 0, 2 => 200, 3 => 450, ...] up to max_level
+ExperienceManager::precalculateLevelRequirements(50);  // up to level 50
+ExperienceManager::getCachedLevelRequirements();       // the same, cached
+ExperienceManager::getExperienceForLevel(5);
+ExperienceManager::calculateLevel(1200);
+```
+
+For a static ladder, `precalculateLevelRequirements()` returns the configured
+thresholds.
 
 ## Events
 
-The experience system fires three types of events:
-
-### ExperienceGained
-
-Fired when experience is awarded:
+All three carry the experiencer, the amount or levels, the reason, and the
+log row (null when logging is off).
 
 ```php
 use Ram64\LaravelMerit\Events\ExperienceGained;
-
-Event::listen(ExperienceGained::class, function ($event) {
-    Log::info("{$event->experiencer->name} gained {$event->amount} XP: {$event->reason}");
-});
-```
-
-### ExperienceLost
-
-Fired when experience is deducted:
-
-```php
 use Ram64\LaravelMerit\Events\ExperienceLost;
-
-Event::listen(ExperienceLost::class, function ($event) {
-    Log::info("{$event->experiencer->name} lost {$event->amount} XP: {$event->reason}");
-});
-```
-
-### LevelledUp
-
-Fired when a level up occurs:
-
-```php
 use Ram64\LaravelMerit\Events\LevelledUp;
 
-Event::listen(LevelledUp::class, function ($event) {
-    Log::info("{$event->experiencer->name} levelled up from {$event->oldLevel} to {$event->newLevel}!");
-});
+Event::listen(ExperienceGained::class, fn ($event) => /* $event->amount, $event->reason */);
+Event::listen(ExperienceLost::class, fn ($event) => /* $event->amount, $event->reason */);
+Event::listen(LevelledUp::class, fn ($event) => /* $event->oldLevel, $event->newLevel */);
 ```
+
+Listeners run synchronously unless the listener class implements
+`ShouldQueue`.
 
 ## Experience Logging
 
-Experience changes can be logged for auditing and analytics. This feature can be enabled/disabled in config:
-
 ```php
-// config/merit.php
 'experience' => [
-    'logging_enabled' => true, // Set to false to disable logging
+    'logging_enabled' => true,
 ],
 ```
 
-### Optimized Log Structure
-
-The logs use an optimized structure that eliminates redundant data:
-
-```php
-// Before/After values (experience_change can be calculated)
-'experience_before' => 100,
-'experience_after' => 150,  // +50 XP gained
-
-// Level tracking (event_type can be inferred)
-'level_before' => 2,
-'level_after' => 3,  // Level up occurred
-```
-
-### Querying Logs
+Each row stores `experience_before`, `experience_after`, `level_before` and,
+when the change raised the level, `level_after` (otherwise null). A level up
+is recorded on the row of the change that caused it, not a row of its own.
 
 ```php
-// Get recent experience logs for a user
 $logs = $user->experienceLogs()->limit(10)->get();
-
-// Using scopes (inferred from data)
-$gainedLogs = ExperienceLog::gained()->get();      // experience_after > experience_before
-$lostLogs = ExperienceLog::lost()->get();          // experience_after < experience_before
-$levelUps = ExperienceLog::levelUps()->get();      // level_after > level_before
-
-// Check log types
-foreach ($logs as $log) {
-    if ($log->isGain()) {
-        // Experience was gained
-    } elseif ($log->isLoss()) {
-        // Experience was lost
-    } elseif ($log->isLevelUp()) {
-        // Level up occurred
-    }
-}
-
-// Using the service
 $logs = ExperienceManager::getExperienceLogs($user, 10);
+
+ExperienceLog::gained()->get();     // experience_after > experience_before
+ExperienceLog::lost()->get();       // experience_after < experience_before
+ExperienceLog::levelUps()->get();   // level_after > level_before
+
+$log->isGain();
+$log->isLoss();
+$log->isLevelUp();
+$log->experience_change;            // after - before
 ```
 
-## Configuration Options
-
-### Experience Table Names
+## Configuration
 
 ```php
 'experience' => [
-    'table' => 'experiencers',           // Main experience table
-    'logs_table' => 'experience_logs',   // Experience logs table
+    'table' => 'experiencers',
+    'logs_table' => 'experience_logs',
+    'logging_enabled' => true,
+    'cache_ttl' => 10,                 // minutes, for getCachedExperienceData()
+    'level_calculation' => 'static',   // or 'dynamic'
+    'level_thresholds' => [/* ... */],
+    'level_formula' => '50 * $level * $level',
+    'max_level' => 100,                // dynamic only
+    'allow_level_decrease' => false,   // lets setLevel() go down
 ],
 ```
 
-### Caching
-
-```php
-'experience' => [
-    'cache_ttl' => 10, // Cache TTL in minutes
-],
-```
-
-### Event Queueing
-
-```php
-'experience' => [
-    'queue_events' => false, // Set to true to queue events
-    'queue_connection' => null,
-],
-```
-
-### Level Decrease Permissions
-
-```php
-'experience' => [
-    'allow_level_decrease' => false, // Set to true to allow level decreases via setLevel()
-],
-```
+The migrations read the two table names, so set them before migrating.
 
 ## Advanced Usage
 
-### Bulk Experience Awards
+### Bulk awards
 
 ```php
-$awards = [
+$results = ExperienceManager::bulkAwardExperience([
     ['experiencer' => $user1, 'amount' => 100, 'reason' => 'Daily login'],
     ['experiencer' => $user2, 'amount' => 150, 'reason' => 'Quest completion'],
-];
-
-$results = ExperienceManager::bulkAwardExperience($awards);
+]);
 ```
+
+Each entry reports `success`; one failing does not stop the rest.
 
 ### Statistics
 
 ```php
-$stats = ExperienceManager::getStatistics();
-
-// Returns:
-// - total_experiencers
-// - total_experience_awarded
-// - total_experience_lost
-// - total_level_ups
-// - average_level
-// - highest_level
+ExperienceManager::getStatistics();
+// total_experiencers, total_experience_awarded, total_experience_lost,
+// total_level_ups, average_level, highest_level
 ```
 
-### Level Requirements
+## Deleting a model
+
+Deleting a model with `CanExperience` deletes its experiencer row and its log
+too, on a hard delete only: a soft-deleted model keeps them. Set
+`merit.cleanup_on_delete` to false to keep them always.
+
+## With achievements
 
 ```php
-// Pre-calculate level requirements for dynamic formulas
-$requirements = ExperienceManager::precalculateLevelRequirements(50);
-// Returns: [1 => 50, 2 => 200, 3 => 450, ...]
-
-// Get cached level requirements (recommended for performance)
-$requirements = ExperienceManager::getCachedLevelRequirements(50);
-
-// Get experience required for a specific level
-$expForLevel5 = ExperienceManager::getExperienceForLevel(5);
-```
-
-### Custom Level Calculations
-
-You can create custom level calculation logic by extending the `Experiencer` model:
-
-```php
-class CustomExperiencer extends \Ram64\LaravelMerit\Models\Experiencer
-{
-    public function calculateLevel(int $experience): int
-    {
-        // Custom logic here
-        return parent::calculateLevel($experience);
-    }
-}
-```
-
-## Rules & Constraints
-
-- **Experience never goes below 0**: Attempts to deduct more XP than available will set experience to 0
-- **Levels never decrease naturally**: Levels are permanent unless `allow_level_decrease` is enabled in config
-- **Administrative level changes**: Configure `allow_level_decrease => true` to enable level decreases via `setLevel()`
-- **Config changes**: If level thresholds change, existing users keep their current levels
-- **Thread safety**: Experience operations are atomic to prevent race conditions
-
-## Integration with Achievements
-
-Experience and achievements work seamlessly together:
-
-```php
-// Award experience when unlocking achievements
-$user->gainExperience(50, 'Achievement unlocked: First Post');
-
-// Check achievements based on experience levels
-class ExperiencedUserAchievement extends AchievementDefinition
+class ReachLevelFiveAchievement extends AchievementDefinition
 {
     public static function qualifiesFor(Model $achiever): bool
     {
-        return $achiever->getLevel() >= 5; // Requires level 5
+        return $achiever->getLevel() >= 5;
     }
+
+    // ...
 }
 ```
 
-## Performance Considerations
-
-- Experience data is cached to improve performance
-- Use `getCachedExperienceData()` for multiple reads
-- Clear caches after bulk operations: `$user->clearExperienceCaches()`
-- Experience logging can be disabled for high-traffic applications
+Award experience for an unlock from a listener on `AchievementUnlocked`.

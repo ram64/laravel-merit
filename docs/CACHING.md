@@ -1,208 +1,105 @@
 # Caching in Laravel Merit
 
-Laravel Merit includes comprehensive caching to optimize performance and reduce database/filesystem queries. All caching respects the `cache_ttl` configuration setting.
+Laravel Merit caches through your application's default cache store.
+Everything it caches expires after `merit.cache_ttl` minutes (10 by default),
+except the experience payload, which uses `merit.experience.cache_ttl`.
 
-## Configuration
-
-### Environment Variables (.env)
 ```env
-# Cache TTL in minutes (default: 10)
 MERIT_CACHE_TTL=15
-
-# Optional: Use specific cache store
-CACHE_DRIVER=redis
-```
-
-### Config File (config/merit.php)
-```php
-'cache_ttl' => env('MERIT_CACHE_TTL', 10), // minutes
+MERIT_EXPERIENCE_CACHE_TTL=10
 ```
 
 ## What Gets Cached
 
-### 1. Achievement Discovery
-- **What**: List of all discovered achievement classes
-- **Key**: `merit:achievements:discovery:[hash]`
-- **Duration**: Full cache TTL
-- **Purpose**: Avoids filesystem scanning on every request
+The keys below are stable and can be read directly, for example to batch
+your own lookups. `[class]` is the achiever's class name (not its morph
+alias), `[id]` its key, `[key]` the achievement key.
 
-### 2. Achievement Display Data
-- **What**: Formatted achievement data for users (name, progress, etc.)
-- **Key**: `merit:display:[achiever_class]:[achiever_id]:[achievement_key]`
-- **Duration**: Full TTL for unlocked, half TTL for in-progress
-- **Purpose**: Reduces database queries for achievement status
+| Key | Holds | TTL |
+| --- | --- | --- |
+| `merit:achievements:discovery:[hash]` | the list of discovered definition classes | `cache_ttl` |
+| `merit:record:[class]:[id]:[key]` | the stored progress row | `cache_ttl` |
+| `merit:name:[class]:[id]:[key]` | the real name, from `name($achiever)` | `cache_ttl` |
+| `merit:description:[class]:[id]:[key]` | the real description | `cache_ttl` |
+| `merit:display:[class]:[id]:[key]` | the full `getAchievementDisplay()` payload | `cache_ttl`, half that until unlocked |
+| `merit:experience:[id]:[class]` | `getCachedExperienceData()` | `experience.cache_ttl` |
+| `merit:level_requirements:[max]` | `getCachedLevelRequirements()` | `experience.cache_ttl` |
 
-### 3. Achievement Records
-- **What**: Individual `AchieverAchievement` database records
-- **Key**: `merit:record:[achiever_class]:[achiever_id]:[achievement_key]`
-- **Duration**: Full cache TTL
-- **Purpose**: Caches frequently accessed progress records
+Only the **real** name and description of a secret achievement are cached,
+never the placeholder. Code reading `merit:name:` or `merit:description:`
+directly must apply the secret gate itself (`isTextHiddenFrom()`), or use
+`getDisplayTextMany()`, which does.
 
-### 4. User Achievement Collections
-- **What**: User-specific achievement collections
-- **Key**: `merit:user:[achiever_class]:[achiever_id]`
-- **Duration**: Full cache TTL
-- **Purpose**: Reduces queries for user achievement lists
+## Reading a page of achievements
 
-## Cache Invalidation
+The singular accessors cost a cache read or two each, which on the
+`database` cache driver is a query each. For a list, use the batch forms:
 
-Caches are automatically cleared when:
-
-### Progress Changes
 ```php
-// These automatically clear relevant caches
-AchievementTracker::check($user);
-AchievementTracker::increment($user, 'achievement_key', 1);
-AchievementTracker::award($user, 'achievement_key');
+// Name and description: hits in one round trip
+AchievementTracker::getDisplayTextMany($user, $keys);
+
+// The full payload: hits in one round trip; misses built from one query
+// for all of the achiever's rows, then stored together
+AchievementTracker::getAchievementDisplayMany($user, $keys);
 ```
 
-### Manual Cache Clearing
-```php
-// Clear all caches for a specific user
-AchievementTracker::clearUserCache($user);
+Both give exactly what the singular calls give for each key, omit unknown
+keys, and keep the order asked for.
 
-// Clear achievement discovery cache
+## Invalidation
+
+The tracker clears an achievement's record, name, description and display
+caches for an achiever whenever it changes that achiever's row: through a
+check (`check()` / `processCheck()`), `increment()`, `award()` or
+`unlockOrProgress()`. Any stored change counts, a fall in progress
+included. Experience changes clear the experience payload.
+
+By hand:
+
+```php
+AchievementTracker::clearAchievementCache($user, 'first_post'); // one achievement
+AchievementTracker::clearUserCache($user);                      // every achievement
+$user->clearAchievementCaches();                                // the same, from the model
+$user->clearExperienceCaches();
 AchievementTracker::clearDiscoveryCache();
-
-// Clear caches via CanAchieve trait
-$user->clearAchievementCaches();
 ```
 
-## Performance Benefits
+`clearUserCache()` deletes four keys per defined achievement, so prefer the
+single-achievement form where you know what changed.
 
-### Before Caching
-```
-Request 1: Scan filesystem (10ms) + Query DB (5ms) = 15ms
-Request 2: Scan filesystem (10ms) + Query DB (5ms) = 15ms  
-Request 3: Scan filesystem (10ms) + Query DB (5ms) = 15ms
-Total: 45ms for 3 requests
-```
+## Discovery and deploys
 
-### With Caching
-```
-Request 1: Scan filesystem (10ms) + Query DB (5ms) + Cache (1ms) = 16ms
-Request 2: Cache hit (1ms) = 1ms
-Request 3: Cache hit (1ms) = 1ms
-Total: 18ms for 3 requests (60% improvement)
-```
+The definition list is cached for `cache_ttl`, so a definition **added** in a
+deploy is not seen until the entry expires. Clear it as part of the deploy:
 
-## Usage Examples
-
-### Basic Cached Operations
 ```php
-use Ram64\LaravelMerit\Services\AchievementTracker;
-
-// This will use cached data when available
-$achievements = AchievementTracker::getVisibleAchievements($user);
-$display = AchievementTracker::getAchievementDisplay($user, 'first_post');
-
-// These will invalidate relevant caches
-AchievementTracker::check($user);
-$user->clearAchievementCaches();
+AchievementTracker::clearDiscoveryCache(); // or php artisan cache:clear
 ```
 
-### Using CanAchieve Trait Methods
-```php
-// Cached methods on your User model
-$visibleAchievements = $user->getVisibleAchievements();
-$achievementData = $user->getCachedAchievementDisplay('first_post');
+A definition **deleted** or renamed in a deploy is handled: a cached list
+naming a class that no longer exists is thrown away and the directory is
+scanned again.
 
-// This clears all caches for the user
-$user->clearAchievementCaches();
-```
+Long-running workers (queue workers, Octane) also keep the list in memory for
+the life of the process. Restart them on deploy, as you would for any code
+change.
 
-### Monitoring Cache Performance
-```php
-// Check if caching is helping (in a service provider or command)
-$cacheHits = Cache::getRedis()->hget('laravel_cache:merit:*', 'hits');
-$cacheMisses = Cache::getRedis()->hget('laravel_cache:merit:*', 'misses');
+## Names and descriptions that change
 
-$hitRatio = $cacheHits / ($cacheHits + $cacheMisses);
-echo "Cache hit ratio: " . ($hitRatio * 100) . "%";
-```
-
-## Cache Keys Reference
-
-All cache keys follow consistent patterns:
-
-```
-merit:achievements:discovery:[hash]              # Discovery cache
-merit:display:[class]:[id]:[key]                # Display data
-merit:record:[class]:[id]:[key]                 # Achievement records  
-merit:user:[class]:[id]                         # User collections
-```
-
-## Advanced Configuration
-
-### Different TTLs for Different Data Types
-```php
-// In a custom service provider
-public function boot()
-{
-    // Override cache durations
-    config(['merit.cache_ttl' => 30]); // 30 minutes for discovery
-    config(['merit.display_cache_ttl' => 5]); // 5 minutes for display data
-}
-```
-
-### Custom Cache Tags (if using Redis/Memcached)
-```php
-use Illuminate\Support\Facades\Cache;
-
-// Tag caches for easier clearing
-Cache::tags(['merit', 'achievements'])->put($key, $data, $ttl);
-
-// Clear all Merit caches
-Cache::tags(['merit'])->flush();
-```
-
-## Best Practices
-
-### ✅ Do's
-- Let the system handle cache invalidation automatically
-- Use appropriate cache TTL based on your app's needs
-- Monitor cache hit rates in production
-- Use `clearUserCache()` after bulk operations
-
-### ❌ Don'ts  
-- Don't manually manage individual cache keys
-- Don't set extremely long TTLs for progress data
-- Don't forget to clear caches in custom achievement logic
-- Don't disable caching in high-traffic applications
+`name($achiever)` and `description($achiever)` may depend on the achiever
+(for example "3 of 10 caught"). The cached text is refreshed when the
+achievement's row changes; if the text depends on anything else, it can be up
+to `cache_ttl` minutes old.
 
 ## Troubleshooting
 
-### Cache Not Working
-```bash
-# Check if cache is configured
-php artisan config:cache
-php artisan cache:clear
+Turn on debug mode (`MERIT_DEBUG=true`) and look for lines such as:
 
-# Verify cache driver
-php artisan tinker
->>> Cache::getStore()
-```
-
-### Stale Data Issues
-```php
-// Force cache refresh
-AchievementTracker::clearDiscoveryCache();
-$user->clearAchievementCaches();
-
-// Or clear everything
-php artisan cache:clear
-```
-
-### Debug Cache Performance
-Enable Merit debug mode to see cache operations:
-```env
-MERIT_DEBUG=true
-```
-
-Look for logs like:
 ```
 [Merit] Loaded achievements from cache {"count":15}
 [Merit] Retrieved achievement display from cache {"achievement":"first_post"}
+[Merit] Batch display read {"requested":24,"resolved":24,"built":3}
 ```
 
-Caching dramatically improves performance while maintaining data consistency! 🚀
+For stale data, clear the caches above or run `php artisan cache:clear`.

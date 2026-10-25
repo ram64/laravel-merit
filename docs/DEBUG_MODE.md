@@ -52,7 +52,7 @@ When debug mode is enabled, Laravel Merit logs detailed information about:
 ```
 [2025-01-01 10:00:00] local.DEBUG: [Merit] Starting achievement check {"achiever_id":1,"achiever_type":"App\\Models\\User","queue_enabled":false}
 [2025-01-01 10:00:00] local.DEBUG: [Merit] Processing achievement check {"achiever_id":1,"achiever_type":"App\\Models\\User","total_achievements":5}
-[2025-01-01 10:00:00] local.DEBUG: [Merit] Checking achievement: first_post {"achievement_class":"App\\Achievements\\FirstPostAchievement","achiever_id":1}
+[2025-01-01 10:00:00] local.DEBUG: [Merit] Checking achievement: first_post {"achievement_class":"App\\Definitions\\Achievements\\FirstPostAchievement","achiever_id":1}
 [2025-01-01 10:00:00] local.DEBUG: [Merit] Current progress calculated {"achievement":"first_post","progress":1,"goal":1}
 [2025-01-01 10:00:00] local.DEBUG: [Merit] Achievement completed and unlocked: first_post
 [2025-01-01 10:00:00] local.DEBUG: [Merit] Achievement check processing completed
@@ -80,22 +80,18 @@ Then set in your `.env`:
 MERIT_DEBUG_CHANNEL=merit
 ```
 
-## Log Levels
+## Log Level
 
-Choose appropriate log levels based on your needs:
-
-- **debug**: Most verbose, includes all operations
-- **info**: Important events like completions and unlocks  
-- **warning**: Issues like missing prerequisites
-- **error**: Actual errors and exceptions
+Every Merit line is written at the one level set by `MERIT_DEBUG_LEVEL`
+(`debug` by default); the package does not grade its messages. Raise it only
+if the channel you send them to drops lines below a given level.
 
 ## Production Considerations
 
-⚠️ **Important**: Debug mode logs sensitive information and can be verbose. 
+**Important**: debug mode is verbose, and logs achiever IDs and class names.
 
 **Recommendations:**
 - Only enable in development/staging environments
-- Use higher log levels (info/warning) in production if needed
 - Rotate logs regularly if enabled in production
 - Consider performance impact with high-volume achievement checking
 
@@ -112,9 +108,9 @@ Enable debug mode and look for:
 ### Discovery Issues
 Look for discovery logs:
 ```
-[Merit] Achievement path does not exist {"path":"/app/Achievements"}
-[Merit] Skipping class (abstract or invalid base) {"class":"App\\Achievements\\BaseAchievement"}
-[Merit] Class does not exist {"class":"App\\Achievements\\InvalidAchievement"}
+[Merit] Achievement path does not exist {"path":"/app/Definitions/Achievements"}
+[Merit] Skipping class (abstract or invalid base) {"class":"App\\Definitions\\Achievements\\BaseAchievement"}
+[Merit] Class does not exist {"class":"App\\Definitions\\Achievements\\InvalidAchievement"}
 ```
 
 ### Performance Issues
@@ -133,5 +129,3 @@ if (config('merit.debug.enabled')) {
     // Maybe show additional UI elements
 }
 ```
-
-Debug mode is an invaluable tool for understanding and optimizing your achievement system! 🔍

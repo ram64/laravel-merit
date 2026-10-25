@@ -7,7 +7,7 @@ Secret achievements are hidden from users until they unlock them, adding mystery
 Use the artisan command:
 
 ```bash
-php artisan make:merit-achievement NightOwl
+php artisan make:merit-achievement NightOwlAchievement
 ```
 
 When prompted:
@@ -55,7 +55,7 @@ $achievement = AchievementTracker::getAchievementDisplay($user, 'night_owl');
 ### Check Visibility
 
 ```php
-use App\Achievements\NightOwlAchievement;
+use App\Definitions\Achievements\NightOwlAchievement;
 
 // Check if achievement should be shown to user
 if (NightOwlAchievement::isVisibleTo($user)) {
@@ -78,9 +78,9 @@ echo NightOwlAchievement::getDisplayDescription($user);
 ```php
 <?php
 
-namespace App\Achievements;
+namespace App\Definitions\Achievements;
 
-use Ram64\LaravelMerit\Achievements\AchievementDefinition;
+use Ram64\LaravelMerit\Definitions\Achievements\AchievementDefinition;
 use Illuminate\Database\Eloquent\Model;
 
 class SecretMasterAchievement extends AchievementDefinition
@@ -90,12 +90,12 @@ class SecretMasterAchievement extends AchievementDefinition
         return true; // This makes it secret
     }
 
-    public static function name(): string
+    public static function name(?Model $achiever = null): string
     {
         return 'Secret Master';
     }
 
-    public static function description(): string
+    public static function description(?Model $achiever = null): string
     {
         return 'Unlock 10 other achievements';
     }
@@ -138,4 +138,21 @@ class SecretMasterAchievement extends AchievementDefinition
 @endforeach
 ```
 
-Secret achievements add an element of surprise and discovery that keeps users engaged! 🎉
+## Changing the placeholder text
+
+Override `hiddenName()` and `hiddenDescription()` on the definition:
+
+```php
+public static function hiddenName(): string
+{
+    return '???';
+}
+```
+
+## Reading the cache directly
+
+Only the real name and description are ever cached. Anything that reads the
+`merit:name:` or `merit:description:` keys itself must apply the secret gate
+(`isTextHiddenFrom($achiever)`), or the real text of a locked secret leaks.
+`AchievementTracker::getDisplayTextMany()` and `getAchievementDisplayMany()`
+read the cache in bulk and apply the gate for you.

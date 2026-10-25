@@ -1,91 +1,73 @@
 # Achievement Prerequisites
 
-Laravel Merit now supports flexible prerequisite definitions for achievements. You can specify that certain achievements must be unlocked before others become available.
+An achievement can require others to be unlocked first. Until they are, a
+check does not evaluate it at all, even if the achiever already qualifies.
 
-## Prerequisite Types
+## Declaring prerequisites
 
-### 1. No Prerequisites
-
-For achievements that can be unlocked immediately:
-
-```php
-public static function prerequisite(): string|array|null
-{
-    return null; // No requirements
-}
-```
-
-### 2. Single String Key Prerequisite
-
-Specify a single achievement that must be unlocked first using its key:
+Override `prerequisite()`. It is declared on `BaseAchievementDefinition`, so
+every definition has it, and returns `null` by default.
 
 ```php
 public static function prerequisite(): string|array|null
 {
-    return 'first_post'; // Must unlock first_post achievement
-}
-```
-
-### 3. Single Class Prerequisite
-
-Reference another achievement class directly:
-
-```php
-public static function prerequisite(): string|array|null
-{
-    return FirstPostAchievement::class; // Must unlock FirstPostAchievement
-}
-```
-
-### 4. Multiple Prerequisites (Mixed)
-
-Specify multiple prerequisites using a mix of strings and classes:
-
-```php
-public static function prerequisite(): string|array|null
-{
-    return [
-        'first_post',                    // String key
-        FifthPostAchievement::class,     // Class reference
-        TenthPostAchievement::class,     // Another class reference
+    return null;                          // no requirement
+    return 'first_post';                  // one achievement, by key
+    return FirstPostAchievement::class;   // one achievement, by class
+    return [                              // several: ALL of them
+        'first_post',
+        TenthPostAchievement::class,
     ];
 }
 ```
 
-## How It Works
+A class name is turned into that definition's `key()`. Anything else is
+treated as a key, so a typo in a key is never an error: it names an
+achievement nobody can unlock, and the dependent achievement can never start.
 
-### Prerequisite Checking
+## All, not any
 
-The `canStart()` method automatically checks all prerequisites:
+An array means every prerequisite must be unlocked. There is no "any of".
+
+`canStart()` is a hard gate, so think about reachability: an achievement
+whose prerequisite an achiever can never unlock is one they can qualify for
+and never be awarded. If an achievement can be reached by two different
+routes, chaining it to either route gates it behind a step the other route
+never takes. In that case leave `prerequisite()` as `null` and put the
+condition in `qualifiesFor()` / `calculateCurrentProgress()` instead.
+
+A prerequisite counts once it is **unlocked** (`unlocked_at` is set), not
+merely completed.
+
+## Order of evaluation
+
+Achievements are checked in dependency order (a topological sort of the
+prerequisite graph), so a prerequisite is always evaluated before the
+achievements that depend on it. A whole chain can therefore complete in a
+single check: unlocking the first rung makes the second startable within the
+same pass.
+
+A cycle (A requires B, B requires A) cannot be sorted. It is detected, and
+rather than hang, the check falls back to discovery order for every
+achievement, so chains elsewhere may then take more than one check to
+complete. With debug mode on, a "Cycle detected" line is logged. A check can
+never start either achievement in the cycle; only award() can unlock them.
+
+## Checking by hand
 
 ```php
-// Check if user can start this achievement
 if (PostMasterAchievement::canStart($user)) {
-    // All prerequisites are met
+    // every prerequisite is unlocked
 }
 ```
 
-### Key Extraction
+During a check the answer comes from the achiever's rows, read once for the
+whole check; outside one, `canStart()` makes one query.
 
-The system automatically extracts achievement keys from class references:
-
-- **String keys**: Used directly (`'first_post'` → `'first_post'`)
-- **Class references**: Key extracted using `::key()` method (`FirstPostAchievement::class` → `'first_post'`)
-
-### Validation
-
-The system validates that:
-
-1. Class references must exist and be subclasses of `BaseAchievementDefinition`
-2. Class references must have a `key()` method
-3. All prerequisite achievements must be unlocked for the user
-
-## Example Achievement Structure
+## Example
 
 ```php
-<?php
-
-namespace App\Definitions\Achievements\Posts;
+namespace App\Definitions\Achievements;
 
 use Illuminate\Database\Eloquent\Model;
 use Ram64\LaravelMerit\Definitions\Achievements\AchievementDefinition;
@@ -97,14 +79,14 @@ class PostMasterAchievement extends AchievementDefinition
         return 'post_master';
     }
 
-    public static function name(): string
+    public static function name(?Model $achiever = null): string
     {
         return 'Post Master';
     }
 
-    public static function description(): string
+    public static function description(?Model $achiever = null): string
     {
-        return 'Master the art of posting with 100 posts';
+        return 'Write 100 posts';
     }
 
     public static function goal(): int
@@ -112,19 +94,9 @@ class PostMasterAchievement extends AchievementDefinition
         return 100;
     }
 
-    public static function category(): string
-    {
-        return 'posts';
-    }
-
-    // Mixed prerequisites
     public static function prerequisite(): string|array|null
     {
-        return [
-            'first_post',                    // Must complete first post
-            FifthPostAchievement::class,     // Must complete 5th post
-            TenthPostAchievement::class,     // Must complete 10th post
-        ];
+        return ['first_post', TenthPostAchievement::class];
     }
 
     public static function qualifiesFor(Model $achiever): bool
@@ -139,41 +111,8 @@ class PostMasterAchievement extends AchievementDefinition
 }
 ```
 
-## Usage in Achievement Tracker
+## With make:merit-achievement
 
-The `AchievementTracker` automatically respects prerequisites:
-
-```php
-use Ram64\LaravelMerit\Services\AchievementTracker;
-
-$tracker = new AchievementTracker();
-
-// Only processes achievements whose prerequisites are met
-$tracker->processCheck($user, PostMasterAchievement::class);
-```
-
-## Benefits
-
-1. **Type Safety**: Class references provide IDE autocompletion and refactoring support
-2. **Flexibility**: Mix string keys and class references as needed
-3. **Validation**: Automatic validation of class references and prerequisites
-4. **Performance**: Efficient prerequisite checking with database queries
-5. **Maintainability**: Easy to track achievement dependencies
-
-## Migration from String-Only Prerequisites
-
-If you have existing achievements with string prerequisites, they continue to work unchanged:
-
-```php
-// This still works
-public static function prerequisite(): string|array|null
-{
-    return 'first_post';
-}
-
-// You can gradually migrate to class references
-public static function prerequisite(): string|array|null
-{
-    return FirstPostAchievement::class;
-}
-```
+The command asks whether the achievement has prerequisites, then whether
+there are several, then for the keys one at a time (an empty answer
+finishes). It writes them into `prerequisite()` as given.
