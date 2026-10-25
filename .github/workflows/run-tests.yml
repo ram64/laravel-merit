@@ -26,12 +26,10 @@ jobs:
     timeout-minutes: 10
     strategy:
       # Report the whole matrix rather than cancelling the rest on the first
-      # failure — a single-platform break should not hide the other legs.
+      # failure: a single-platform break should not hide the other legs.
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        # 8.2 is missing deliberately: composer.json allows it, but Pest 4
-        # requires PHP >= 8.3, so the suite cannot run there.
         php: [8.4, 8.3]
         laravel: [13.*, 12.*, 11.*]
         stability: [prefer-lowest, prefer-stable]
@@ -63,7 +61,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" --dev --no-interaction --no-update
+          composer require "laravel/framework:${{ matrix.laravel }}" --no-interaction --no-update
+          composer require "orchestra/testbench:${{ matrix.testbench }}" --dev --no-interaction --no-update
           composer update --${{ matrix.stability }} --prefer-dist --no-interaction
 
       - name: List Installed Dependencies
