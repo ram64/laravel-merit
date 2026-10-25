@@ -53,17 +53,25 @@ class AchievementTracker
             'total_achievements' => count($achievements),
         ]);
 
-        // One query for the achiever's unlocked keys, rather than one exists()
-        // per prerequisite per achievement. Unlocks made below are fed back in
-        // so a chain still completes in this single pass.
+        // Every stored row for the achiever, in one query. It answers both
+        // "is this already unlocked" and "is there a row for this yet", which
+        // used to cost a query per achievement on every check.
+        $records = static::fetchRecords($achiever);
+
+        // The unlocked keys come from the same rows, so the prerequisite
+        // checks below cost nothing further. Unlocks made below are fed back
+        // in so a chain still completes in this single pass.
         $opened = ! AchievementDefinition::hasUnlockedKeysWindow($achiever);
 
         if ($opened) {
-            AchievementDefinition::primeUnlockedKeys($achiever);
+            AchievementDefinition::primeUnlockedKeys($achiever, array_keys(array_filter(
+                $records,
+                fn (AchieverAchievement $record) => $record->unlocked_at !== null
+            )));
         }
 
         try {
-            static::processAchievements($achiever, $achievements);
+            static::processAchievements($achiever, $achievements, $records);
         } finally {
             // Only close a window this call opened; a caller above may own one.
             if ($opened) {
@@ -78,16 +86,27 @@ class AchievementTracker
      * The body of processCheck(), inside the prerequisite batch window.
      *
      * @param  array<int, class-string<BaseAchievementDefinition>>  $achievements
+     * @param  array<string, AchieverAchievement>  $records
      */
-    protected static function processAchievements($achiever, array $achievements): void
+    protected static function processAchievements($achiever, array $achievements, array $records): void
     {
         foreach ($achievements as $achievementClass) {
             $achievementKey = $achievementClass::key();
+            $record = $records[$achievementKey] ?? null;
 
             static::debug("Checking achievement: {$achievementKey}", [
                 'achievement_class' => $achievementClass,
                 'achiever_id' => $achiever->getKey(),
             ]);
+
+            // An unlocked achievement stays unlocked whatever its progress
+            // does, so there is nothing to work out. Skipping it before
+            // calculateCurrentProgress() also saves the definition's own query.
+            if ($record !== null && $record->unlocked_at !== null) {
+                static::debug("Achievement already unlocked: {$achievementKey}");
+
+                continue;
+            }
 
             // Skip if prerequisites not met
             if (! $achievementClass::canStart($achiever)) {
@@ -112,69 +131,169 @@ class AchievementTracker
                 continue;
             }
 
-            $record = AchieverAchievement::firstOrCreate(
-                [
-                    'achiever_id' => $achiever->getKey(),
-                    'achiever_type' => $achiever->getMorphClass(),
-                    'achievement_key' => $achievementClass::key(),
-                ],
-                [
-                    'progress' => $currentProgress,
-                    'goal' => $achievementClass::goal(),
-                    'started_at' => now(),
-                ]
-            );
+            if ($record === null) {
+                $record = AchieverAchievement::firstOrCreate(
+                    [
+                        'achiever_id' => $achiever->getKey(),
+                        'achiever_type' => $achiever->getMorphClass(),
+                        'achievement_key' => $achievementKey,
+                    ],
+                    [
+                        'progress' => $currentProgress,
+                        'goal' => $achievementClass::goal(),
+                        'status' => 'in_progress',
+                        'started_at' => now(),
+                    ]
+                );
 
-            // Fire started event if this is the first time
-            if ($record->wasRecentlyCreated) {
-                static::debug("Achievement started: {$achievementKey}");
-                event(new AchievementStarted($record, $achiever));
+                // Fire started event if this is the first time
+                if ($record->wasRecentlyCreated) {
+                    static::debug("Achievement started: {$achievementKey}");
+                    event(new AchievementStarted($record, $achiever));
+                }
+
+                // Another check may have created the row, and even unlocked
+                // it, since this one read the achiever's rows.
+                if ($record->unlocked_at !== null) {
+                    static::debug("Achievement already unlocked: {$achievementKey}");
+                    AchievementDefinition::noteUnlocked($achiever, $achievementKey);
+
+                    continue;
+                }
             }
 
-            // Skip if already unlocked
-            if ($record->unlocked_at !== null) {
-                static::debug("Achievement already unlocked: {$achievementKey}");
-
-                continue;
-            }
-
-            $oldProgress = $record->progress;
-            $record->progress = min($currentProgress, $record->goal);
-
-            // Fire progress event if progress changed
-            if ($record->progress > $oldProgress) {
-                static::debug('Achievement progress updated', [
-                    'achievement' => $achievementKey,
-                    'old_progress' => $oldProgress,
-                    'new_progress' => $record->progress,
-                    'goal' => $record->goal,
-                ]);
-                event(new AchievementProgressed($record, $achiever, $record->progress));
-            }
-
-            // Check if completed
-            $wasCompleted = $record->completed_at !== null;
-            if ($record->progress >= $record->goal && ! $wasCompleted) {
-                static::debug("Achievement completed and unlocked: {$achievementKey}");
-                $record->completed_at = now();
-                event(new AchievementCompleted($record, $achiever));
-
-                // Auto-unlock when completed
-                $record->unlocked_at = now();
-                AchievementDefinition::noteUnlocked($achiever, $achievementKey);
-                event(new AchievementUnlocked($record, $achiever));
-            }
-
-            $record->save();
-
-            // Clear the caches once the new state is actually persisted, so a
-            // listener that read the record on the way through cannot leave a
-            // pre-save value behind. Any stored change counts: a new row and a
-            // fall in progress leave a cached read just as stale as a rise.
-            if ($record->wasRecentlyCreated || $record->wasChanged()) {
-                static::forgetAchievementCaches($achiever, $achievementKey);
-            }
+            static::advance($achiever, $achievementClass, $record, $currentProgress);
         }
+    }
+
+    /**
+     * Move a locked row to new progress, persist it, and fire the events for
+     * what changed.
+     *
+     * Every write path ends here, so the row comes out the same shape
+     * whichever one touched it: the definition's current goal, a status that
+     * matches the progress, and completed_at and unlocked_at set together.
+     *
+     * Events go out after the row is saved and its caches cleared, so a
+     * listener that reads the achiever's state sees the new value. That also
+     * makes them at most once: a listener that throws leaves the unlock
+     * stored, and a later check will not announce it again.
+     *
+     * Reaching the goal completes and unlocks the row in one step. A row
+     * already completed but left locked stays locked unless $award is set,
+     * as it always has; award() is what unlocks those.
+     *
+     * @param  class-string<BaseAchievementDefinition>  $achievementClass
+     */
+    protected static function advance(Model $achiever, string $achievementClass, AchieverAchievement $record, int $progress, bool $award = false): void
+    {
+        $achievementKey = $achievementClass::key();
+
+        // The goal is the definition's as it stands now. The row only
+        // remembers the goal it was created with, which went stale whenever
+        // a definition's goal changed, leaving rows stuck short of it.
+        $record->goal = $achievementClass::goal();
+
+        $oldProgress = $record->progress;
+        $wasCompleted = $record->completed_at !== null;
+        $record->progress = min($progress, $record->goal);
+        $progressed = $record->progress > $oldProgress;
+        $unlocking = $record->progress >= $record->goal && (! $wasCompleted || $award);
+
+        if ($unlocking) {
+            $claimed = static::claimUnlock($record);
+        } else {
+            $claimed = false;
+            $record->status = $record->progress > 0 ? 'in_progress' : 'started';
+            $record->save();
+        }
+
+        // Clear the caches once the new state is actually persisted. Any
+        // stored change counts: a new row and a fall in progress leave a
+        // cached read just as stale as a rise.
+        if ($claimed || $record->wasRecentlyCreated || $record->wasChanged()) {
+            static::forgetAchievementCaches($achiever, $achievementKey);
+        }
+
+        if ($unlocking && ! $claimed) {
+            // Another check unlocked the row between this one reading it and
+            // writing it. That check fired the events; firing them again
+            // would announce the same unlock twice.
+            static::debug("Achievement unlocked elsewhere: {$achievementKey}");
+            AchievementDefinition::noteUnlocked($achiever, $achievementKey);
+
+            return;
+        }
+
+        if ($progressed) {
+            static::debug('Achievement progress updated', [
+                'achievement' => $achievementKey,
+                'old_progress' => $oldProgress,
+                'new_progress' => $record->progress,
+                'goal' => $record->goal,
+            ]);
+            event(new AchievementProgressed($record, $achiever, $record->progress));
+        }
+
+        if ($claimed) {
+            static::debug("Achievement completed and unlocked: {$achievementKey}");
+
+            if (! $wasCompleted) {
+                event(new AchievementCompleted($record, $achiever));
+            }
+
+            AchievementDefinition::noteUnlocked($achiever, $achievementKey);
+            event(new AchievementUnlocked($record, $achiever));
+        }
+    }
+
+    /**
+     * Write the unlock, unless another process unlocked the row first.
+     *
+     * The update only matches while unlocked_at is still null, so of two
+     * checks racing to unlock the same row exactly one writes it, and only
+     * that one goes on to fire the unlock events. The loser's copy of the row
+     * is refreshed to what the winner stored.
+     */
+    protected static function claimUnlock(AchieverAchievement $record): bool
+    {
+        $now = now();
+
+        $attributes = [
+            'progress' => $record->progress,
+            'goal' => $record->goal,
+            'status' => 'unlocked',
+            'completed_at' => $record->completed_at ?? $now,
+            'unlocked_at' => $now,
+        ];
+
+        $claimed = AchieverAchievement::query()
+            ->whereKey($record->getKey())
+            ->whereNull('unlocked_at')
+            ->update($attributes) === 1;
+
+        if ($claimed) {
+            $record->forceFill($attributes)->syncOriginal();
+        } else {
+            $record->refresh();
+        }
+
+        return $claimed;
+    }
+
+    /**
+     * Every stored row for an achiever, keyed by achievement key.
+     *
+     * @return array<string, AchieverAchievement>
+     */
+    protected static function fetchRecords(Model $achiever): array
+    {
+        return AchieverAchievement::query()
+            ->where('achiever_id', $achiever->getKey())
+            ->where('achiever_type', $achiever->getMorphClass())
+            ->get()
+            ->keyBy('achievement_key')
+            ->all();
     }
 
     /**
@@ -195,53 +314,15 @@ class AchievementTracker
             throw new \InvalidArgumentException("Achievement '{$achievementKey}' not found");
         }
 
-        $record = AchieverAchievement::firstOrCreate(
-            [
-                'achiever_id' => $achiever->getKey(),
-                'achiever_type' => $achiever->getMorphClass(),
-                'achievement_key' => $achievementKey,
-            ],
-            [
-                'progress' => 0,
-                'goal' => $achievementClass::goal(),
-                'started_at' => now(),
-            ]
-        );
-
-        // Fire started event if this is the first time
-        if ($record->wasRecentlyCreated) {
-            event(new AchievementStarted($record, $achiever));
-        }
+        $record = static::openRecord($achiever, $achievementClass);
 
         // Skip if already unlocked
         if ($record->unlocked_at !== null) {
             return $record;
         }
 
-        // Set progress to goal and mark as completed/unlocked
-        $oldProgress = $record->progress;
-        $record->progress = $record->goal;
-
-        // Fire progress event if progress changed
-        if ($record->progress > $oldProgress) {
-            event(new AchievementProgressed($record, $achiever, $record->progress));
-        }
-
-        // Mark as completed if not already
-        if ($record->completed_at === null) {
-            $record->completed_at = now();
-            event(new AchievementCompleted($record, $achiever));
-        }
-
-        // Mark as unlocked
-        $record->unlocked_at = now();
-        $record->save();
-
-        AchievementDefinition::noteUnlocked($achiever, $achievementKey);
-        event(new AchievementUnlocked($record, $achiever));
-
-        // Clear cache when manually awarded
-        static::forgetAchievementCaches($achiever, $achievementKey);
+        // Straight to the goal, which unlocks it
+        static::advance($achiever, $achievementClass, $record, $achievementClass::goal(), award: true);
 
         return $record;
     }
@@ -271,15 +352,36 @@ class AchievementTracker
             return;
         }
 
+        $record = static::openRecord($achiever, $achievementClass);
+
+        // Skip if already unlocked
+        if ($record->unlocked_at !== null) {
+            return $record;
+        }
+
+        static::advance($achiever, $achievementClass, $record, $record->progress + $amount);
+
+        return $record;
+    }
+
+    /**
+     * Find or create the achiever's row for an achievement, at no progress,
+     * firing the started event if this created it.
+     *
+     * @param  class-string<BaseAchievementDefinition>  $achievementClass
+     */
+    protected static function openRecord(Model $achiever, string $achievementClass): AchieverAchievement
+    {
         $record = AchieverAchievement::firstOrCreate(
             [
                 'achiever_id' => $achiever->getKey(),
                 'achiever_type' => $achiever->getMorphClass(),
-                'achievement_key' => $achievementKey,
+                'achievement_key' => $achievementClass::key(),
             ],
             [
                 'progress' => 0,
                 'goal' => $achievementClass::goal(),
+                'status' => 'started',
                 'started_at' => now(),
             ]
         );
@@ -287,38 +389,6 @@ class AchievementTracker
         // Fire started event if this is the first time
         if ($record->wasRecentlyCreated) {
             event(new AchievementStarted($record, $achiever));
-        }
-
-        // Skip if already unlocked
-        if ($record->unlocked_at !== null) {
-            return $record;
-        }
-
-        $oldProgress = $record->progress;
-        $record->progress = min($record->progress + $amount, $record->goal);
-
-        // Fire progress event if progress changed
-        if ($record->progress > $oldProgress) {
-            event(new AchievementProgressed($record, $achiever, $record->progress));
-        }
-
-        // Check if completed
-        $wasCompleted = $record->completed_at !== null;
-        if ($record->progress >= $record->goal && ! $wasCompleted) {
-            $record->completed_at = now();
-            event(new AchievementCompleted($record, $achiever));
-
-            // Auto-unlock when completed
-            $record->unlocked_at = now();
-            AchievementDefinition::noteUnlocked($achiever, $achievementKey);
-            event(new AchievementUnlocked($record, $achiever));
-        }
-
-        $record->save();
-
-        // Clear cache whenever the stored row changed, a negative amount included
-        if ($record->wasRecentlyCreated || $record->wasChanged()) {
-            static::forgetAchievementCaches($achiever, $achievementKey);
         }
 
         return $record;

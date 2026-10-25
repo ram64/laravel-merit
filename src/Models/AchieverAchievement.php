@@ -45,11 +45,11 @@ class AchieverAchievement extends Model
         'achievement_key',
         'progress',
         'goal',
+        'status',
         'metadata',
         'started_at',
         'completed_at',
         'unlocked_at',
-
     ];
 
     /**

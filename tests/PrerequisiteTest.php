@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Ram64\LaravelMerit\Events\AchievementUnlocked;
+use Ram64\LaravelMerit\Models\AchieverAchievement;
 use Ram64\LaravelMerit\Services\AchievementTracker;
 use Ram64\LaravelMerit\Tests\Fixtures\Achievements\Chain\StepOneAchievement;
 use Ram64\LaravelMerit\Tests\Fixtures\Achievements\Chain\StepThreeAchievement;
@@ -73,22 +74,23 @@ it('gates on unlocked rather than completed', function () {
 });
 
 describe('the batched lookup', function () {
-    it('reads the unlocked keys once per check, not once per prerequisite', function () {
+    it('answers every prerequisite in a check without a query of its own', function () {
         useAchievements('Diamond');
 
         // root has none, left and right have one each, join has two: four
-        // exists() calls before this was batched.
+        // exists() calls before this was batched. The check reads the
+        // achiever's rows once anyway, and the unlocked keys come from those.
         $user = createUser(points: 1);
 
-        expect(prerequisiteQueriesDuring(fn () => AchievementTracker::processCheck($user)))->toBe(1);
+        expect(prerequisiteQueriesDuring(fn () => AchievementTracker::processCheck($user)))->toBe(0);
     });
 
-    it('holds the count at one however many achievements are checked', function () {
+    it('holds the count at zero however many achievements are checked', function () {
         useAchievements('Chain');
 
         $user = createUser(points: 1);
 
-        expect(prerequisiteQueriesDuring(fn () => AchievementTracker::processCheck($user)))->toBe(1);
+        expect(prerequisiteQueriesDuring(fn () => AchievementTracker::processCheck($user)))->toBe(0);
     });
 
     it('closes the window, so a later unlock is seen', function () {
@@ -120,7 +122,10 @@ describe('the batched lookup', function () {
 
         Event::forget(AchievementUnlocked::class);
 
-        // A stale window would still be claiming chain_one is unlocked.
+        // The unlock was stored before the event went out. Take it back out
+        // of the database: a stale window would still be claiming it.
+        AchieverAchievement::where('achievement_key', 'chain_one')->update(['unlocked_at' => null]);
+
         expect(StepTwoAchievement::canStart($user))->toBeFalse();
     });
 

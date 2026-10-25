@@ -37,10 +37,17 @@ abstract class BaseAchievementDefinition
      *
      * Pair with flushUnlockedKeys() in a finally. While a window is open, an
      * unlock made outside noteUnlocked() will not be seen.
+     *
+     * A caller that has already read the achiever's rows passes the unlocked
+     * keys in, and no query is made.
+     *
+     * @param  array<int, string>|null  $unlockedKeys
      */
-    public static function primeUnlockedKeys(Model $achiever): void
+    public static function primeUnlockedKeys(Model $achiever, ?array $unlockedKeys = null): void
     {
-        self::$unlockedKeys[self::achieverKey($achiever)] = static::fetchUnlockedKeys($achiever);
+        self::$unlockedKeys[self::achieverKey($achiever)] = $unlockedKeys === null
+            ? static::fetchUnlockedKeys($achiever)
+            : array_flip($unlockedKeys);
     }
 
     /**
