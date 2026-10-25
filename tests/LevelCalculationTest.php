@@ -78,6 +78,14 @@ describe('dynamic formula', function () {
         expect(ExperienceManager::calculateLevel(1_000_000))->toBe(3);
     });
 
+    it("measures a new achiever's progress from zero, not from the formula's first step", function () {
+        $progress = createUser()->getExperienceProgress();
+
+        expect($progress['current'])->toBe(0)
+            ->and($progress['required'])->toBe(200)
+            ->and($progress['percentage'])->toEqual(0);
+    });
+
     it('levels an achiever up through the formula', function () {
         $user = createUser();
 

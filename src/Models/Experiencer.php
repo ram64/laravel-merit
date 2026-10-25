@@ -174,7 +174,11 @@ class Experiencer extends Model
      */
     public function getProgressToNextLevel(): array
     {
-        $currentLevelExp = $this->getExperienceForLevel($this->level);
+        // Level 1 is where everyone starts, at no experience, whatever the
+        // formula gives for it: calculateLevel() returns 1 for anything short
+        // of level 2. Measuring from the formula's value instead put a new
+        // achiever below the floor of their own level, at negative progress.
+        $currentLevelExp = $this->level <= 1 ? 0 : $this->getExperienceForLevel($this->level);
         $nextLevelExp = $this->getExperienceForNextLevel();
 
         $progress = $this->experience - $currentLevelExp;
