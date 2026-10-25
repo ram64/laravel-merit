@@ -77,12 +77,7 @@ class AchievementTracker
     /**
      * The body of processCheck(), inside the prerequisite batch window.
      *
-     * Deliberately untyped elements. Typing them as
-     * class-string<BaseAchievementDefinition> — which is what discovery
-     * actually registers — makes PHPStan flag the canStart() call below,
-     * because canStart() lives on AchievementDefinition. That is the known gap
-     * about definitions extending the base directly, and closing it is a design
-     * call rather than something to settle here.
+     * @param  array<int, class-string<BaseAchievementDefinition>>  $achievements
      */
     protected static function processAchievements($achiever, array $achievements): void
     {
@@ -761,7 +756,7 @@ class AchievementTracker
             'is_started' => $achievementClass::isStarted($achiever),
             'is_secret' => $achievementClass::isSecret(),
             'is_visible' => $achievementClass::isVisibleTo($achiever),
-            'category' => method_exists($achievementClass, 'category') ? $achievementClass::category() : 'general',
+            'category' => $achievementClass::category(),
         ];
 
         // Cache for shorter duration if not unlocked (progress may change)

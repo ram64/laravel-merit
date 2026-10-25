@@ -7,6 +7,7 @@ use Ram64\LaravelMerit\Events\AchievementUnlocked;
 use Ram64\LaravelMerit\Jobs\ProcessAchievementCheck;
 use Ram64\LaravelMerit\Models\AchieverAchievement;
 use Ram64\LaravelMerit\Services\AchievementTracker;
+use Ram64\LaravelMerit\Tests\Fixtures\Achievements\Bare\BareAchievement;
 use Ram64\LaravelMerit\Tests\Fixtures\Achievements\Progress\CountingAchievement;
 use Ram64\LaravelMerit\Tests\Fixtures\Achievements\Progress\DormantAchievement;
 
@@ -34,6 +35,17 @@ it('completes a diamond in a single pass', function () {
 
     expect($user->achievements()->whereNotNull('unlocked_at')->pluck('achievement_key')->all())
         ->toEqualCanonicalizing(['diamond_root', 'diamond_left', 'diamond_right', 'diamond_join']);
+});
+
+it('checks a definition that extends the base class directly', function () {
+    useAchievements('Bare');
+
+    $user = createUser(points: 1);
+
+    AchievementTracker::processCheck($user);
+
+    expect(BareAchievement::isUnlocked($user))->toBeTrue()
+        ->and(AchievementTracker::getAchievementDisplay($user, 'bare')['category'])->toBe('general');
 });
 
 it('writes no row for an achievement sitting at zero progress', function () {

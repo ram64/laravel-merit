@@ -178,6 +178,82 @@ abstract class BaseAchievementDefinition
     abstract public static function qualifiesFor(Model $achiever): bool;
 
     /**
+     * Get the achievement(s) that must be completed before this one
+     *
+     * Declared here rather than on AchievementDefinition, along with
+     * category() and canStart(), because the tracker calls all three on
+     * every definition discovery accepts. A definition extending this class
+     * directly used to be discovered and then fail on the first check.
+     *
+     * Can return:
+     * - A single key (string): 'achievement_key'
+     * - A single class (string): FirstPostAchievement::class
+     * - Multiple mixed (array): ['achievement_key', SecondPostAchievement::class]
+     */
+    public static function prerequisite(): string|array|null
+    {
+        return null;
+    }
+
+    /**
+     * Category for grouping achievements
+     */
+    public static function category(): string
+    {
+        return 'general';
+    }
+
+    /**
+     * Check if this achievement can be started (prerequisites met)
+     */
+    public static function canStart(Model $achiever): bool
+    {
+        $prerequisites = static::prerequisite();
+
+        if (! $prerequisites) {
+            return true;
+        }
+
+        // Convert single prerequisite to array for uniform handling
+        if (is_string($prerequisites)) {
+            $prerequisites = [$prerequisites];
+        }
+
+        $unlocked = static::unlockedKeysWindow($achiever) ?? static::fetchUnlockedKeys($achiever);
+
+        // All prerequisites must be unlocked, not any of them.
+        foreach ($prerequisites as $prerequisite) {
+            // Extract key from class name if it's a class
+            if (! isset($unlocked[static::extractAchievementKey($prerequisite)])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Extract achievement key from either a string key or AchievementDefinition class
+     */
+    protected static function extractAchievementKey(string $prerequisite): string
+    {
+        // If it's a class name (contains backslashes or ends with Achievement)
+        if (str_contains($prerequisite, '\\') || class_exists($prerequisite)) {
+            // Check if it's a valid AchievementDefinition class. key() is
+            // abstract on the base, so a subclass always has it.
+            if (
+                class_exists($prerequisite) &&
+                is_subclass_of($prerequisite, BaseAchievementDefinition::class)
+            ) {
+                return $prerequisite::key();
+            }
+        }
+
+        // Otherwise, treat it as a direct key
+        return $prerequisite;
+    }
+
+    /**
      * Calculate current progress based on achiever's actual data
      * This should return the current count/progress towards the goal
      */
