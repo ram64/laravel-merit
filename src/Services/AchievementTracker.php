@@ -664,9 +664,11 @@ class AchievementTracker
     {
         $allAchievements = static::getAllAchievements();
 
-        return array_filter($allAchievements, function ($achievementClass) use ($achiever) {
+        // A list, in dependency order. array_filter() kept the original keys,
+        // so the result had gaps and JSON-encoded as an object.
+        return array_values(array_filter($allAchievements, function ($achievementClass) use ($achiever) {
             return $achievementClass::isVisibleTo($achiever);
-        });
+        }));
     }
 
     /**

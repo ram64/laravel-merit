@@ -56,6 +56,11 @@ it('leaves locked secrets out of the visible list without dropping public ones',
         ->toEqualCanonicalizing(['open_book', 'hidden_gem']);
 });
 
+it('returns the visible achievements as a list', function () {
+    // Discovery puts hidden_gem first, so filtering it out left a gap at 0.
+    expect(AchievementTracker::getVisibleAchievements(createUser()))->toBeList();
+});
+
 it('still lists a locked secret achievement in the full set', function () {
     // Secret achievements hide their text, not their existence.
     expect(AchievementTracker::getAchievementKeys())
