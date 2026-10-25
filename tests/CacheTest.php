@@ -194,6 +194,30 @@ describe('the achievement record cache', function () {
         expect(CountingAchievement::getProgress($user))->toBe(2);
     });
 
+    it('reflects a fall in progress written by a later check', function () {
+        $user = createUser(points: 2);
+        AchievementTracker::processCheck($user);
+
+        expect(CountingAchievement::getProgress($user))->toBe(2);
+
+        $user->update(['points' => 1]);
+        AchievementTracker::processCheck($user);
+
+        expect(CountingAchievement::getProgress($user))->toBe(1);
+    });
+
+    it('refreshes the display payload when a check first starts an achievement', function () {
+        $user = createUser();
+
+        expect(AchievementTracker::getAchievementDisplay($user, 'counting')['is_started'])->toBeFalse();
+
+        $user->update(['points' => 1]);
+        AchievementTracker::processCheck($user);
+
+        expect(AchievementTracker::getAchievementDisplay($user, 'counting'))
+            ->toMatchArray(['is_started' => true, 'progress' => 1]);
+    });
+
     it('reflects an unlock written by award()', function () {
         $user = createUser();
 

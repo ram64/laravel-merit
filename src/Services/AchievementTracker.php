@@ -145,7 +145,6 @@ class AchievementTracker
 
             $oldProgress = $record->progress;
             $record->progress = min($currentProgress, $record->goal);
-            $changed = false;
 
             // Fire progress event if progress changed
             if ($record->progress > $oldProgress) {
@@ -156,7 +155,6 @@ class AchievementTracker
                     'goal' => $record->goal,
                 ]);
                 event(new AchievementProgressed($record, $achiever, $record->progress));
-                $changed = true;
             }
 
             // Check if completed
@@ -170,15 +168,15 @@ class AchievementTracker
                 $record->unlocked_at = now();
                 AchievementDefinition::noteUnlocked($achiever, $achievementKey);
                 event(new AchievementUnlocked($record, $achiever));
-                $changed = true;
             }
 
             $record->save();
 
             // Clear the caches once the new state is actually persisted, so a
             // listener that read the record on the way through cannot leave a
-            // pre-save value behind.
-            if ($changed) {
+            // pre-save value behind. Any stored change counts: a new row and a
+            // fall in progress leave a cached read just as stale as a rise.
+            if ($record->wasRecentlyCreated || $record->wasChanged()) {
                 static::forgetAchievementCaches($achiever, $achievementKey);
             }
         }
@@ -323,8 +321,8 @@ class AchievementTracker
 
         $record->save();
 
-        // Clear cache when progress is incremented
-        if ($record->progress > $oldProgress) {
+        // Clear cache whenever the stored row changed, a negative amount included
+        if ($record->wasRecentlyCreated || $record->wasChanged()) {
             static::forgetAchievementCaches($achiever, $achievementKey);
         }
 
