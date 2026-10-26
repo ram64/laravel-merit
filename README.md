@@ -46,6 +46,11 @@ Every option can be set from the environment.
 | `queue_connection` | `MERIT_QUEUE_CONNECTION` | `null` | Connection for that job |
 | `queue_name` | `MERIT_QUEUE_NAME` | `null` | Queue for that job |
 | `cleanup_on_delete` | `MERIT_CLEANUP_ON_DELETE` | `true` | Delete an achiever's rows when it is hard deleted |
+| `images.path` | `MERIT_IMAGES_PATH` | `null` | Folder of achievement pictures; `null` means no lookups at all |
+| `images.url` | `MERIT_IMAGES_URL` | `null` | Public URL of that folder |
+| `images.extensions` | | `['webp', 'png']` | Tried in this order |
+| `images.hidden` | `MERIT_IMAGES_HIDDEN` | `null` | Picture shown for a secret not yet unlocked |
+| `icons.categories` | | `[]` | Default icon name per category |
 | `debug.enabled` | `MERIT_DEBUG` | `false` | Log every step of a check (see `debug.log_channel`) |
 | `experience.*` | | | Tables, logging, and the level ladder; see [Experience and levels](#experience-and-levels) |
 
@@ -174,7 +179,8 @@ Return `true` from `isSecret()` and, until it is unlocked,
 `getDisplayName($user)` and `getDisplayDescription($user)` return placeholder
 text instead of the real thing. Override `hiddenName()` and
 `hiddenDescription()` to change the placeholders. The achievement itself is
-still listed; only its text is hidden.
+still listed; only its text is hidden. Its icon and picture are hidden the
+same way: see [Icons and images](#icons-and-images).
 
 ### Reading state
 
@@ -184,7 +190,7 @@ FirstPostAchievement::getProgressPercentage($user); // float
 FirstPostAchievement::isUnlocked($user);
 FirstPostAchievement::isVisibleTo($user);
 
-AchievementTracker::getAchievementDisplay($user, 'first_post');      // everything above, cached
+AchievementTracker::getAchievementDisplay($user, 'first_post');      // everything above, plus icon and image_url, cached
 AchievementTracker::getAchievementDisplayMany($user, $keys);         // the same for a page of them
 AchievementTracker::getAllAchievements();                            // definition classes, in dependency order
 AchievementTracker::getVisibleAchievements($user);                   // without locked secrets
@@ -200,6 +206,99 @@ They fire after the row is saved, so a listener reading the achiever's state
 sees the change. That makes them at most once: a listener that throws leaves
 the unlock stored, and it is not announced again. Listeners run
 synchronously unless the listener implements `ShouldQueue`.
+
+## Icons and images
+
+An achievement can show an icon, a picture, or both. Both are optional and
+null unless you set them, and the package never renders either: it hands you
+an icon name and an image URL to use in your own views.
+
+### Icons
+
+Return an icon name from `icon()`. It is passed through untouched, so it can
+come from any icon set your UI renders, such as a Blade icon:
+
+```php
+public static function icon(?Model $achiever = null): ?string
+{
+    return 'tabler-crown';
+}
+```
+
+An achievement without one can take a default for its category:
+
+```php
+// config/merit.php
+'icons' => [
+    'categories' => ['fishing' => 'tabler-fish'],
+],
+```
+
+### Images by naming convention
+
+Point the package at a folder of pictures named by achievement key, and it
+finds each one for you:
+
+```php
+// config/merit.php
+'images' => [
+    'path' => public_path('images/achievements'),
+    'url' => '/images/achievements',
+    'extensions' => ['webp', 'png'],
+    'hidden' => null,
+],
+```
+
+With that, `first_post` shows `public/images/achievements/first_post.webp`,
+or `first_post.png` if there is no WebP; the extensions are tried in order.
+With no `path`, nothing is looked up at all.
+
+Recommended art: square, 512 × 512 pixels, transparent WebP, one file per
+achievement, named by its key (`first_post.webp`).
+
+To use something else for one achievement, return it from `image()`: a path
+relative to the folder (`'badges/gold.webp'`), or a full URL
+(`'https://cdn.example.com/first-post.png'`), which is used exactly as given.
+
+A URL built from the folder carries the file's modified time
+(`/images/achievements/first_post.webp?v=1761471234`), so replacing a picture
+changes its URL and browsers and CDNs fetch the new one.
+
+### Secrets
+
+Until a secret is unlocked, it shows `hiddenIcon()` instead of its icon and
+`images.hidden` instead of its picture, through the same check that hides its
+name and description. Both are null by default, so nothing shows. Set
+`images.hidden` to a mystery picture (relative to the folder, or a full URL),
+and override `hiddenIcon()` on a definition to give it a placeholder icon.
+
+### Reading them
+
+```php
+FirstPostAchievement::getDisplayIcon($user);   // 'tabler-crown', the category default, or null
+FirstPostAchievement::getDisplayImage($user);  // '/images/achievements/first_post.webp?v=...', or null
+```
+
+`getAchievementDisplay()`, `getAchievementDisplayMany()` and
+`getDisplayTextMany()` include both, as `icon` and `image_url`, and a page of
+them is still one cache round trip. Keep `icon()` and `image()` cheap: unlike
+the name and description, they are not cached per achiever.
+
+### After adding or replacing pictures
+
+Which files exist, and when each was last modified, is read once when the
+definitions are discovered and cached with them for `cache_ttl` minutes, so
+showing a page never touches the disk. A picture you add or replace is picked
+up when that entry expires, or straight away once you clear it, for example
+as a deploy step:
+
+```bash
+php artisan cache:clear
+```
+
+or `AchievementTracker::clearDiscoveryCache()`, which clears only Merit's
+discovery entry. Long-running workers (queue workers, Octane) also hold it in
+memory: restart them, as on any deploy.
 
 ## Experience and levels
 

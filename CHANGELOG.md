@@ -2,6 +2,57 @@
 
 All notable changes to `laravel-merit` will be documented in this file.
 
+## 0.3.0 - 2026-10-26
+
+### Added
+
+- Icons and images for achievements. A definition can override
+  `icon(?Model $achiever = null): ?string`, an icon name passed through
+  untouched (a Blade icon such as `tabler-crown`), and
+  `image(?Model $achiever = null): ?string`, a full URL or a path relative to
+  the image folder. Both are null by default.
+- Images by naming convention: with `merit.images.path` and
+  `merit.images.url` set, an achievement whose `image()` is null shows
+  `{key}.webp`, or else `{key}.png` (`merit.images.extensions`). Which files
+  exist is read once, with discovery, and cached with it; clearing the
+  discovery cache (`php artisan cache:clear` or
+  `AchievementTracker::clearDiscoveryCache()`) picks up new pictures.
+- Cache busting: a URL built from the folder carries `?v=` with the file's
+  modified time, so a replaced picture gets a new URL. Full URLs from
+  `image()` are passed through unchanged.
+- `getDisplayImage(?Model $achiever)` and `getDisplayIcon(?Model $achiever)`
+  on every definition. The icon falls back to a per-category default from
+  `merit.icons.categories`.
+- Secrets hide both until unlocked, through the same check as the name and
+  description: the picture becomes `merit.images.hidden` and the icon
+  `hiddenIcon()`, both null by default.
+- `icon` and `image_url` in every display payload:
+  `getAchievementDisplay()`, `getAchievementDisplayMany()` and
+  `getDisplayTextMany()`. A page is still one cache round trip.
+- `make:merit-achievement` writes `icon()` and `image()`, with the naming
+  convention in a comment.
+
+### Upgrading
+
+No action is needed. There is no migration, and the PHP and Laravel
+requirements are unchanged. The new config is merged into an already
+published `config/merit.php`, and nothing is looked up until
+`merit.images.path` is set. Display payloads and the discovery entry cached
+by 0.2 are rebuilt on first use, with the new keys.
+
+One exception: a definition that already declares its own static `icon()`,
+`image()` or `hiddenIcon()` must match the new signatures, or PHP will refuse
+to load it:
+
+```php
+public static function icon(?Model $achiever = null): ?string
+public static function image(?Model $achiever = null): ?string
+public static function hiddenIcon(): ?string
+```
+
+Code that compares a whole display entry exactly, for example in a test, will
+also see the two extra keys.
+
 ## 0.2.0 - 2026-10-25
 
 Almost everything since v0.1.6 is new: achievements as definition classes,

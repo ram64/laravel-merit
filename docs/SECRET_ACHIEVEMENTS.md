@@ -149,6 +149,29 @@ public static function hiddenName(): string
 }
 ```
 
+## Icons and pictures
+
+A secret's icon and picture are hidden by the same check as its text. Until
+the achiever unlocks it, `getDisplayIcon()` returns `hiddenIcon()` and
+`getDisplayImage()` returns the picture in `merit.images.hidden`; both are
+null by default, so nothing shows. With no achiever at all, a secret counts as
+hidden.
+
+```php
+public static function hiddenIcon(): ?string
+{
+    return 'tabler-question-mark';
+}
+```
+
+```php
+// config/merit.php
+'images' => [
+    // ...
+    'hidden' => 'mystery.webp', // relative to images.path, or a full URL
+],
+```
+
 ## Reading the cache directly
 
 Only the real name and description are ever cached. Anything that reads the

@@ -17,7 +17,7 @@ alias), `[id]` its key, `[key]` the achievement key.
 
 | Key | Holds | TTL |
 | --- | --- | --- |
-| `merit:achievements:discovery:[hash]` | the list of discovered definition classes | `cache_ttl` |
+| `merit:achievements:discovery:[hash]` | the discovered definition classes, and the image folder's files with their modified times | `cache_ttl` |
 | `merit:record:[class]:[id]:[key]` | the stored progress row | `cache_ttl` |
 | `merit:name:[class]:[id]:[key]` | the real name, from `name($achiever)` | `cache_ttl` |
 | `merit:description:[class]:[id]:[key]` | the real description | `cache_ttl` |
@@ -80,6 +80,16 @@ AchievementTracker::clearDiscoveryCache(); // or php artisan cache:clear
 A definition **deleted** or renamed in a deploy is handled: a cached list
 naming a class that no longer exists is thrown away and the directory is
 scanned again.
+
+The same entry holds the list of files in `merit.images.path` and their
+modified times, read in the same pass, so achievement pictures are found and
+versioned without touching the disk on each page. A picture **added or
+replaced** is likewise not seen until the entry expires or is cleared the same
+way. With no `merit.images.path`, the folder is never read.
+
+A display payload cached by 0.2 lacks `icon` and `image_url`. It is treated
+as a miss, built again and stored over the old one, so no reader sees it
+without them.
 
 Long-running workers (queue workers, Octane) also keep the list in memory for
 the life of the process. Restart them on deploy, as you would for any code
