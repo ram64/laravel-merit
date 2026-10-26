@@ -5,6 +5,7 @@ namespace Ram64\LaravelMerit\Definitions\Achievements;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use Ram64\LaravelMerit\Models\AchieverAchievement;
+use Ram64\LaravelMerit\Support\ImageUrl;
 
 /**
  * Base class for all Achievements.
@@ -503,5 +504,58 @@ abstract class BaseAchievementDefinition
         }
 
         return static::getCachedDescription($achiever);
+    }
+
+    /**
+     * The URL of the picture to show the achiever, or null for none
+     *
+     * A secret the achiever has not unlocked shows merit.images.hidden, behind
+     * the same check as the name and description. Otherwise image() decides:
+     * a full URL as it is, a path relative to the image folder as a versioned
+     * URL. When image() is null, the folder is searched by key: {key}.webp,
+     * then {key}.png (merit.images.extensions).
+     */
+    public static function getDisplayImage(?Model $achiever = null): ?string
+    {
+        if (static::isHiddenFrom($achiever)) {
+            return ImageUrl::resolve(config('merit.images.hidden'));
+        }
+
+        return ImageUrl::resolve(static::image($achiever)) ?? ImageUrl::forKey(static::key());
+    }
+
+    /**
+     * The icon to show the achiever, or null for none
+     *
+     * hiddenIcon() for a secret the achiever has not unlocked; otherwise
+     * icon(), then the default for the category (merit.icons.categories).
+     */
+    public static function getDisplayIcon(?Model $achiever = null): ?string
+    {
+        if (static::isHiddenFrom($achiever)) {
+            return static::hiddenIcon();
+        }
+
+        return static::icon($achiever) ?? static::categoryIcon();
+    }
+
+    /**
+     * The configured default icon for this achievement's category, if any.
+     */
+    protected static function categoryIcon(): ?string
+    {
+        $icons = config('merit.icons.categories');
+        $icon = is_array($icons) ? ($icons[static::category()] ?? null) : null;
+
+        return is_string($icon) && $icon !== '' ? $icon : null;
+    }
+
+    /**
+     * isTextHiddenFrom() for an achiever who may be absent. With nobody there
+     * to have unlocked it, a secret stays hidden.
+     */
+    protected static function isHiddenFrom(?Model $achiever): bool
+    {
+        return $achiever === null ? static::isSecret() : static::isTextHiddenFrom($achiever);
     }
 }

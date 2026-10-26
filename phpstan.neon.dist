@@ -23,6 +23,12 @@ parameters:
             identifier: larastan.noEnvCallsOutsideOfConfig
             path: config/merit.php
 
+        # A verbatim copy of the config 0.2 published, kept to test that an
+        # application still holding it gets the newer defaults merged in.
+        -
+            identifier: larastan.noEnvCallsOutsideOfConfig
+            path: tests/Fixtures/Config/merit-0.2.php
+
         # GeneratorCommand documents handle() as returning bool|null, but
         # Command::execute() casts whatever handle() returns to the exit code.
         # Returning true for success made a successful run exit 1.
