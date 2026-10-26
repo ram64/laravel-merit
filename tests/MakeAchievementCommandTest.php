@@ -49,7 +49,7 @@ it('writes the class into the configured namespace, even outside the app namespa
  * A separate process, because a class whose methods do not match the parent
  * is a fatal error at declaration time and would take the suite down with it.
  *
- * @return array{secret: bool, qualifies: bool, goal: int}
+ * @return array{secret: bool, qualifies: bool, goal: int, icon: ?string, image: ?string}
  */
 function inspectGenerated(string $file, string $class): array
 {
@@ -59,7 +59,7 @@ function inspectGenerated(string $file, string $class): array
         .'require '.var_export($file, true).';'
         .'$c = '.var_export($class, true).';'
         .'$m = new class extends Illuminate\Database\Eloquent\Model {};'
-        .'echo json_encode(["secret" => $c::isSecret(), "qualifies" => $c::qualifiesFor($m), "goal" => $c::goal()]);';
+        .'echo json_encode(["secret" => $c::isSecret(), "qualifies" => $c::qualifiesFor($m), "goal" => $c::goal(), "icon" => $c::icon($m), "image" => $c::image($m)]);';
 
     $process = new Process([PHP_BINARY, '-r', $code]);
     $process->run();
@@ -73,14 +73,14 @@ it('generates a definition that PHP can load', function () {
     makeAchievement($this, 'FirstCatch')->run();
 
     expect(inspectGenerated(generatedPath().'/FirstCatch.php', 'Generated\\Achievements\\FirstCatch'))
-        ->toBe(['secret' => false, 'qualifies' => false, 'goal' => 3]);
+        ->toBe(['secret' => false, 'qualifies' => false, 'goal' => 3, 'icon' => null, 'image' => null]);
 });
 
 it('marks a secret achievement secret without making it qualify', function () {
     makeAchievement($this, 'HiddenCatch', secret: true)->run();
 
     expect(inspectGenerated(generatedPath().'/HiddenCatch.php', 'Generated\\Achievements\\HiddenCatch'))
-        ->toBe(['secret' => true, 'qualifies' => false, 'goal' => 3]);
+        ->toBe(['secret' => true, 'qualifies' => false, 'goal' => 3, 'icon' => null, 'image' => null]);
 });
 
 it('generates a loadable class from a description with quotes and a prerequisite', function () {
@@ -107,6 +107,12 @@ it('generates a loadable class from a description with quotes and a prerequisite
 
     expect($process->isSuccessful())->toBeTrue($process->getErrorOutput().$process->getOutput())
         ->and(json_decode($process->getOutput(), true))->toBe(["Land the angler's second fish \\o/", 'first_catch']);
+});
+
+it('names the conventional image file after the key in the generated comment', function () {
+    makeAchievement($this, 'FirstCatch')->run();
+
+    expect(File::get(generatedPath().'/FirstCatch.php'))->toContain('first_catch.webp (or .png)');
 });
 
 it('exits successfully when it writes the class', function () {

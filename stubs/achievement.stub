@@ -22,6 +22,21 @@ class DummyClass extends AchievementDefinition
         return 'DummyDescription';
     }
 
+    public static function icon(?Model $achiever = null): ?string
+    {
+        // An icon name for your UI, such as 'tabler-trophy', or null for the
+        // category default in merit.icons.categories.
+        return null;
+    }
+
+    public static function image(?Model $achiever = null): ?string
+    {
+        // Null finds the picture by naming convention: DummyKey.webp (or .png)
+        // in merit.images.path. Return a path relative to that folder, or a
+        // full URL, to use something else.
+        return null;
+    }
+
     public static function goal(): int
     {
         return DummyGoal;

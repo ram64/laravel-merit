@@ -58,6 +58,21 @@ class FirstPostAchievement extends AchievementDefinition
         return 'Achieve First Post';
     }
 
+    public static function icon(?Model $achiever = null): ?string
+    {
+        // An icon name for your UI, such as 'tabler-trophy', or null for the
+        // category default in merit.icons.categories.
+        return null;
+    }
+
+    public static function image(?Model $achiever = null): ?string
+    {
+        // Null finds the picture by naming convention: first_post.webp (or .png)
+        // in merit.images.path. Return a path relative to that folder, or a
+        // full URL, to use something else.
+        return null;
+    }
+
     public static function goal(): int
     {
         return 1;
@@ -92,6 +107,7 @@ class FirstPostAchievement extends AchievementDefinition
 }
 ```
 
-Replace the two TODOs. `calculateCurrentProgress()` is what a check stores, so
+`icon()` and `image()` can stay as they are: see "Icons and images" in the
+README for the naming convention. Replace the two TODOs. `calculateCurrentProgress()` is what a check stores, so
 for a multi-step achievement return the real count, for example
 `min(static::getCount($achiever, 'posts'), static::goal())`.
