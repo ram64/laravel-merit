@@ -211,6 +211,31 @@ abstract class BaseAchievementDefinition
     }
 
     /**
+     * An icon name for the achievement, such as a Blade icon ('tabler-crown'),
+     * or null for none
+     *
+     * The package passes it through and never renders it, so it can name an
+     * icon from any set. getDisplayIcon() adds the category default and the
+     * secret gate.
+     */
+    public static function icon(?Model $achiever = null): ?string
+    {
+        return null;
+    }
+
+    /**
+     * A picture for the achievement: a full URL, a path relative to
+     * merit.images.path, or null to use the naming convention
+     * ({merit.images.path}/{key}.webp, then .png)
+     *
+     * getDisplayImage() turns it into the URL to show, with the secret gate.
+     */
+    public static function image(?Model $achiever = null): ?string
+    {
+        return null;
+    }
+
+    /**
      * The target number to reach for completion
      */
     abstract public static function goal(): int;
@@ -419,6 +444,14 @@ abstract class BaseAchievementDefinition
     public static function hiddenDescription(): string
     {
         return 'Complete certain actions to unlock this secret achievement.';
+    }
+
+    /**
+     * The icon shown in place of a secret achievement's own, or null for none
+     */
+    public static function hiddenIcon(): ?string
+    {
+        return null;
     }
 
     /**
