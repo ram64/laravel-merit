@@ -251,9 +251,24 @@ describe('discovery cache', function () {
 
         // Statics cleared, cache left alone: the next call must come from cache.
         AchievementTracker::resetDiscovery();
-        Cache::put(discoveryKey(), ['planted' => CountingAchievement::class], 600);
+        Cache::put(discoveryKey(), ['achievements' => ['planted' => CountingAchievement::class], 'images' => []], 600);
 
         expect(AchievementTracker::getAchievementKeys())->toBe(['planted']);
+    });
+
+    it('never reads an entry cached by 0.2, which held only the definitions', function () {
+        useAchievements('Chain');
+
+        // 0.2 cached the bare list under a hash of the path and namespace.
+        Cache::put('merit:achievements:discovery:'.md5(
+            config('merit.achievements_path').config('merit.achievements_namespace')
+        ), ['planted' => CountingAchievement::class], 600);
+
+        // And an entry of that shape under the current key is rediscovered.
+        Cache::put(discoveryKey(), ['planted' => CountingAchievement::class], 600);
+
+        expect(AchievementTracker::getAchievementKeys())->toHaveCount(3)
+            ->and(Cache::get(discoveryKey()))->toHaveKeys(['achievements', 'images']);
     });
 
     it('rediscovers rather than fatals when a cached class has been deleted', function () {
@@ -263,15 +278,15 @@ describe('discovery cache', function () {
         // As left behind by a deploy that removed a definition: the cached
         // list still names it, and the class no longer exists.
         AchievementTracker::resetDiscovery();
-        Cache::put(discoveryKey(), [
+        Cache::put(discoveryKey(), ['achievements' => [
             'counting' => CountingAchievement::class,
             'deleted' => 'App\\Definitions\\Achievements\\DeletedAchievement',
-        ], 600);
+        ], 'images' => []], 600);
 
         AchievementTracker::processCheck(createUser(points: 1));
 
         expect(AchievementTracker::getAchievementKeys())->toEqualCanonicalizing(['counting', 'dormant'])
-            ->and(Cache::get(discoveryKey()))->not->toHaveKey('deleted');
+            ->and(Cache::get(discoveryKey())['achievements'])->not->toHaveKey('deleted');
     });
 
     it('rediscovers from disk once the cache is cleared', function () {
@@ -287,7 +302,10 @@ describe('discovery cache', function () {
 
 function discoveryKey(): string
 {
-    return 'merit:achievements:discovery:'.md5(
-        config('merit.achievements_path').config('merit.achievements_namespace')
-    );
+    return 'merit:achievements:discovery:'.md5(implode('|', [
+        'v2',
+        config('merit.achievements_path'),
+        config('merit.achievements_namespace'),
+        (string) config('merit.images.path'),
+    ]));
 }

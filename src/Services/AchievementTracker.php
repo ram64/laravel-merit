@@ -14,12 +14,20 @@ use Ram64\LaravelMerit\Events\AchievementStarted;
 use Ram64\LaravelMerit\Events\AchievementUnlocked;
 use Ram64\LaravelMerit\Jobs\ProcessAchievementCheck;
 use Ram64\LaravelMerit\Models\AchieverAchievement;
+use Ram64\LaravelMerit\Support\ImageIndex;
 
 class AchievementTracker
 {
     protected static $achievements = [];
 
     protected static $discovered = false;
+
+    /**
+     * The image folder's files and their modified times, read with discovery
+     *
+     * @var array<string, int>
+     */
+    protected static array $images = [];
 
     /**
      * Check all achievements for a given achiever
@@ -572,18 +580,29 @@ class AchievementTracker
         }
 
         $cacheKey = static::getDiscoveryCacheKey();
-        $cachedAchievements = Cache::get($cacheKey);
+        $cached = Cache::get($cacheKey);
 
         // A definition deleted or renamed since the list was cached would be a
         // fatal "class not found" on first use, for every check, until the
-        // entry expired. A list naming a missing class is rediscovered instead.
-        if (is_array($cachedAchievements) && static::allClassesExist($cachedAchievements)) {
-            static::$achievements = $cachedAchievements;
+        // entry expired. A list naming a missing class is rediscovered instead,
+        // as is an entry not in this shape.
+        if (
+            is_array($cached)
+            && is_array($cached['achievements'] ?? null)
+            && is_array($cached['images'] ?? null)
+            && static::allClassesExist($cached['achievements'])
+        ) {
+            static::$achievements = $cached['achievements'];
+            static::$images = $cached['images'];
             static::$discovered = true;
-            static::debug('Loaded achievements from cache', ['count' => count($cachedAchievements)]);
+            static::debug('Loaded achievements from cache', ['count' => count($cached['achievements'])]);
 
             return;
         }
+
+        // The image folder is read here, once, rather than a file at a time
+        // as images are shown. See ImageIndex.
+        static::$images = ImageIndex::scan(config('merit.images.path'));
 
         $achievementPath = config('merit.achievements_path', app_path('Achievements'));
         $achievementNamespace = config('merit.achievements_namespace', 'App\\Achievements\\');
@@ -630,8 +649,11 @@ class AchievementTracker
             }
         }
 
-        // Cache the discovered achievements
-        Cache::put($cacheKey, static::$achievements, static::getCacheTtl());
+        // Cache the discovered achievements, and the image folder with them
+        Cache::put($cacheKey, [
+            'achievements' => static::$achievements,
+            'images' => static::$images,
+        ], static::getCacheTtl());
 
         static::debug('Achievement discovery completed and cached', [
             'registered' => count(static::$achievements),
@@ -1022,7 +1044,21 @@ class AchievementTracker
     public static function resetDiscovery()
     {
         static::$achievements = [];
+        static::$images = [];
         static::$discovered = false;
+    }
+
+    /**
+     * The image folder's files, by path relative to merit.images.path, with
+     * their modified times. Read with discovery and cached with it.
+     *
+     * @return array<string, int>
+     */
+    public static function getImageIndex(): array
+    {
+        static::discoverAchievements();
+
+        return static::$images;
     }
 
     /**
@@ -1056,7 +1092,12 @@ class AchievementTracker
         $path = config('merit.achievements_path', app_path('Achievements'));
         $namespace = config('merit.achievements_namespace', 'App\\Achievements\\');
 
-        return 'merit:achievements:discovery:'.md5($path.$namespace);
+        // The image folder is part of the entry, so it is part of the key; and
+        // the leading version means an entry cached by 0.2, which held only
+        // the definitions, is never read as one of these.
+        return 'merit:achievements:discovery:'.md5(implode('|', [
+            'v2', $path, $namespace, (string) config('merit.images.path'),
+        ]));
     }
 
     /**
@@ -1149,6 +1190,7 @@ class AchievementTracker
         Cache::forget(static::getDiscoveryCacheKey());
         static::$discovered = false;
         static::$achievements = [];
+        static::$images = [];
 
         static::debug('Cleared achievement discovery cache');
     }

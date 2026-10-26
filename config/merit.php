@@ -26,6 +26,36 @@ return [
     'queue_name' => env('MERIT_QUEUE_NAME', null),
 
     /**
+     * Achievement pictures by naming convention. With a path set, an
+     * achievement whose image() returns null shows {path}/{key}.{ext}, trying
+     * the extensions in order. With no path, nothing is looked up at all.
+     *
+     * - path: the folder on disk, e.g. public_path('images/achievements')
+     * - url: its public URL, e.g. '/images/achievements'
+     * - extensions: tried in this order
+     * - hidden: the picture for a secret not yet unlocked, as a full URL or a
+     *   path relative to the folder; null for none
+     *
+     * Which files exist is read once and cached with the discovered
+     * definitions. After adding or replacing pictures, clear it with
+     * php artisan cache:clear or AchievementTracker::clearDiscoveryCache().
+     */
+    'images' => [
+        'path' => env('MERIT_IMAGES_PATH'),
+        'url' => env('MERIT_IMAGES_URL'),
+        'extensions' => ['webp', 'png'],
+        'hidden' => env('MERIT_IMAGES_HIDDEN'),
+    ],
+
+    /**
+     * Default icon names by category, for an achievement whose icon()
+     * returns null, e.g. ['fishing' => 'tabler-fish'].
+     */
+    'icons' => [
+        'categories' => [],
+    ],
+
+    /**
      * Namespace and path for achievement definitions. This is used for auto-discovery.
      */
     'achievements_namespace' => env('MERIT_ACHIEVEMENTS_NAMESPACE', 'App\\Definitions\\Achievements\\'),
