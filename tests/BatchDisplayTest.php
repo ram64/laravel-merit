@@ -21,6 +21,8 @@ it('returns a name and a description for every requested key', function () {
         ->and($display['batch_two'])->toBe([
             'name' => 'batch_two name',
             'description' => 'batch_two description',
+            'icon' => null,
+            'image_url' => null,
         ]);
 });
 
@@ -46,6 +48,8 @@ it('matches the singular methods exactly, warm', function () {
         ->toBe([
             'name' => BatchOneAchievement::getDisplayName($user),
             'description' => BatchOneAchievement::getDisplayDescription($user),
+            'icon' => BatchOneAchievement::getDisplayIcon($user),
+            'image_url' => BatchOneAchievement::getDisplayImage($user),
         ])
         ->and(AchievementTracker::getDisplayTextMany($user, ['batch_one'])['batch_one']['name'])
         ->toBe('One for Ada');
@@ -83,6 +87,8 @@ describe('the secret gate', function () {
             ->toBe([
                 'name' => 'Hidden Achievement',
                 'description' => 'Complete certain actions to unlock this secret achievement.',
+                'icon' => null,
+                'image_url' => null,
             ]);
     });
 
@@ -111,6 +117,8 @@ describe('the secret gate', function () {
             ->toBe([
                 'name' => 'The Quiet One',
                 'description' => 'You found the thing nobody mentions.',
+                'icon' => null,
+                'image_url' => null,
             ]);
     });
 

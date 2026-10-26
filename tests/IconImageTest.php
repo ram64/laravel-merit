@@ -1,6 +1,10 @@
 <?php
 
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Ram64\LaravelMerit\LaravelMeritServiceProvider;
 use Ram64\LaravelMerit\Services\AchievementTracker;
 use Ram64\LaravelMerit\Tests\Fixtures\Achievements\Images\CategorisedAchievement;
@@ -276,5 +280,168 @@ describe('an older published config', function () {
         AchievementTracker::clearDiscoveryCache();
 
         expect(PlainImageAchievement::getDisplayImage())->toStartWith('/img/plain.png?v=');
+    });
+});
+
+/**
+ * An image folder with a picture for plain, iconic and the hidden secret.
+ */
+function useDisplayImages($test): void
+{
+    $folder = useImageFolder($test);
+    putImage($folder, 'plain.webp', 1_700_000_001);
+    putImage($folder, 'badges/iconic.png', 1_700_000_002);
+    putImage($folder, 'mystery.webp', 1_700_000_003);
+    putImage($folder, 'secret.webp', 1_700_000_004);
+    config()->set('merit.images.hidden', 'secret.webp');
+    config()->set('merit.icons.categories', ['fishing' => 'tabler-fish']);
+    AchievementTracker::clearDiscoveryCache();
+}
+
+const DISPLAY_IMAGE_KEYS = ['plain', 'iconic', 'remote', 'mystery', 'categorised'];
+
+const EXPECTED_ICONS_AND_IMAGES = [
+    'plain' => ['icon' => null, 'image_url' => '/images/achievements/plain.webp?v=1700000001'],
+    'iconic' => ['icon' => 'tabler-crown', 'image_url' => '/images/achievements/badges/iconic.png?v=1700000002'],
+    'remote' => ['icon' => null, 'image_url' => 'https://cdn.example.com/badges/remote.webp?size=512'],
+    'mystery' => ['icon' => 'tabler-question-mark', 'image_url' => '/images/achievements/secret.webp?v=1700000004'],
+    'categorised' => ['icon' => 'tabler-fish', 'image_url' => null],
+];
+
+describe('display data', function () {
+    it('carries icon and image_url in getAchievementDisplay()', function () {
+        useDisplayImages($this);
+        $user = createUser();
+
+        foreach (EXPECTED_ICONS_AND_IMAGES as $key => $expected) {
+            expect(AchievementTracker::getAchievementDisplay($user, $key))->toMatchArray($expected)
+                ->and($user->getCachedAchievementDisplay($key))->toMatchArray($expected);
+        }
+    });
+
+    it('carries the same in getAchievementDisplayMany() as the singular call', function () {
+        useDisplayImages($this);
+        $user = createUser();
+
+        $many = AchievementTracker::getAchievementDisplayMany($user, DISPLAY_IMAGE_KEYS);
+
+        Cache::flush();
+
+        foreach (EXPECTED_ICONS_AND_IMAGES as $key => $expected) {
+            expect($many[$key])->toMatchArray($expected)
+                ->and($many[$key])->toBe(AchievementTracker::getAchievementDisplay($user, $key));
+        }
+    });
+
+    it('carries icon and image_url in getDisplayTextMany(), cold and warm', function () {
+        useDisplayImages($this);
+        $user = createUser();
+
+        $cold = AchievementTracker::getDisplayTextMany($user, DISPLAY_IMAGE_KEYS);
+        $warm = AchievementTracker::getDisplayTextMany($user, DISPLAY_IMAGE_KEYS);
+
+        foreach (EXPECTED_ICONS_AND_IMAGES as $key => $expected) {
+            expect($cold[$key])->toMatchArray($expected)
+                ->and($warm[$key])->toBe($cold[$key]);
+        }
+    });
+
+    it('reveals the secret in every payload once it is unlocked', function () {
+        useDisplayImages($this);
+        $user = createUser();
+        AchievementTracker::award($user, 'mystery');
+
+        $revealed = ['icon' => 'tabler-key', 'image_url' => '/images/achievements/mystery.webp?v=1700000003'];
+
+        expect(AchievementTracker::getAchievementDisplay($user, 'mystery'))->toMatchArray($revealed)
+            ->and(AchievementTracker::getAchievementDisplayMany($user, ['mystery'])['mystery'])->toMatchArray($revealed)
+            ->and(AchievementTracker::getDisplayTextMany($user, ['mystery'])['mystery'])->toMatchArray($revealed);
+    });
+
+    it('reads a warm page in one cache round trip with both keys present', function () {
+        // The driver that makes round trips countable: a cache read is a query.
+        Schema::create('cache', function (Blueprint $table) {
+            $table->string('key')->primary();
+            $table->mediumText('value');
+            $table->integer('expiration');
+        });
+        config()->set('cache.default', 'database');
+
+        useDisplayImages($this);
+        $user = createUser();
+
+        AchievementTracker::getDisplayTextMany($user, DISPLAY_IMAGE_KEYS);
+        AchievementTracker::getAchievementDisplayMany($user, DISPLAY_IMAGE_KEYS);
+
+        foreach (['getDisplayTextMany', 'getAchievementDisplayMany'] as $method) {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $display = AchievementTracker::$method($user, DISPLAY_IMAGE_KEYS);
+            $log = array_column(DB::getQueryLog(), 'query');
+            DB::disableQueryLog();
+
+            $cacheReads = array_filter($log, fn (string $query) => str_contains($query, 'from "cache"'));
+            $others = array_values(array_diff($log, $cacheReads));
+
+            // One cache round trip for the page. The text read also makes the
+            // secret gate's one read of the unlocked keys, as in 0.2, because
+            // a secret is on the page; icons and images add nothing.
+            expect($cacheReads)->toHaveCount(1, $method)
+                ->and($others)->toBe($method === 'getDisplayTextMany'
+                    ? ['select "achievement_key" from "achiever_achievements" where "achiever_id" = ? and "achiever_type" = ? and "unlocked_at" is not null']
+                    : []);
+
+            foreach (EXPECTED_ICONS_AND_IMAGES as $key => $expected) {
+                expect($display[$key])->toMatchArray($expected);
+            }
+        }
+    });
+});
+
+describe('a payload cached by 0.2', function () {
+    /**
+     * A display payload as 0.2 cached it: everything but icon and image_url.
+     */
+    function cacheOldDisplay($user, string $key): string
+    {
+        $cacheKey = 'merit:display:'.$user::class.':'.$user->id.':'.$key;
+
+        Cache::put($cacheKey, [
+            'key' => $key,
+            'name' => "{$key} name",
+            'description' => "{$key} description",
+            'goal' => 1,
+            'progress' => 0,
+            'progress_percentage' => 0.0,
+            'is_completed' => false,
+            'is_unlocked' => false,
+            'is_started' => false,
+            'is_secret' => false,
+            'is_visible' => true,
+            'category' => 'general',
+        ], 600);
+
+        return $cacheKey;
+    }
+
+    it('is built again by getAchievementDisplay(), and stored with the new keys', function () {
+        useDisplayImages($this);
+        $user = createUser();
+        $cacheKey = cacheOldDisplay($user, 'iconic');
+
+        expect(AchievementTracker::getAchievementDisplay($user, 'iconic'))->toMatchArray(EXPECTED_ICONS_AND_IMAGES['iconic'])
+            ->and(Cache::get($cacheKey))->toMatchArray(EXPECTED_ICONS_AND_IMAGES['iconic']);
+    });
+
+    it('is built again by getAchievementDisplayMany(), beside entries that are current', function () {
+        useDisplayImages($this);
+        $user = createUser();
+        AchievementTracker::getAchievementDisplay($user, 'plain');
+        cacheOldDisplay($user, 'iconic');
+
+        $many = AchievementTracker::getAchievementDisplayMany($user, ['plain', 'iconic']);
+
+        expect($many['plain'])->toMatchArray(EXPECTED_ICONS_AND_IMAGES['plain'])
+            ->and($many['iconic'])->toMatchArray(EXPECTED_ICONS_AND_IMAGES['iconic']);
     });
 });

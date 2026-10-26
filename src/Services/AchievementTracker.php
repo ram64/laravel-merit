@@ -703,8 +703,11 @@ class AchievementTracker
      *
      * Unknown keys are omitted rather than returned as nulls.
      *
+     * Each entry also carries the icon and image URL, worked out from the
+     * definition and the cached image index, so they add no round trip.
+     *
      * @param  array<int, string>  $achievementKeys
-     * @return array<string, array{name: string, description: string}>
+     * @return array<string, array{name: string, description: string, icon: string|null, image_url: string|null}>
      */
     public static function getDisplayTextMany(Model $achiever, array $achievementKeys): array
     {
@@ -767,7 +770,7 @@ class AchievementTracker
      *
      * @param  array<string, class-string<BaseAchievementDefinition>>  $definitions
      * @param  array<string, mixed>  $cached
-     * @return array<string, array{name: string, description: string}>
+     * @return array<string, array{name: string, description: string, icon: string|null, image_url: string|null}>
      */
     protected static function resolveDisplayText(Model $achiever, array $definitions, array $cached, int $requested): array
     {
@@ -785,6 +788,8 @@ class AchievementTracker
                 $display[$achievementKey] = [
                     'name' => $achievementClass::getDisplayName($achiever),
                     'description' => $achievementClass::getDisplayDescription($achiever),
+                    'icon' => $achievementClass::getDisplayIcon($achiever),
+                    'image_url' => $achievementClass::getDisplayImage($achiever),
                 ];
                 $missed++;
 
@@ -802,6 +807,8 @@ class AchievementTracker
             $display[$achievementKey] = [
                 'name' => $name,
                 'description' => $description,
+                'icon' => $achievementClass::getDisplayIcon($achiever),
+                'image_url' => $achievementClass::getDisplayImage($achiever),
             ];
         }
 
@@ -823,7 +830,7 @@ class AchievementTracker
         $cacheKey = static::getDisplayCacheKey($achiever, $achievementKey);
         $cached = Cache::get($cacheKey);
 
-        if ($cached !== null) {
+        if (static::isCurrentDisplay($cached)) {
             static::debug('Retrieved achievement display from cache', [
                 'achievement' => $achievementKey,
                 'achiever_id' => $achiever->getKey(),
@@ -904,7 +911,7 @@ class AchievementTracker
         $missing = [];
 
         foreach ($cacheKeys as $achievementKey => $cacheKey) {
-            if (($cached[$cacheKey] ?? null) !== null) {
+            if (static::isCurrentDisplay($cached[$cacheKey] ?? null)) {
                 $display[$achievementKey] = $cached[$cacheKey];
             } else {
                 $missing[$achievementKey] = $definitions[$achievementKey];
@@ -997,7 +1004,25 @@ class AchievementTracker
             'is_secret' => $achievementClass::isSecret(),
             'is_visible' => $achievementClass::isVisibleTo($achiever),
             'category' => $achievementClass::category(),
+            'icon' => $achievementClass::getDisplayIcon($achiever),
+            'image_url' => $achievementClass::getDisplayImage($achiever),
         ];
+    }
+
+    /**
+     * Whether a cached display payload can be served as it is.
+     *
+     * One cached by 0.2 has no icon or image_url. It counts as a miss and is
+     * built again, under the same key, rather than handed back without them
+     * until it expires.
+     *
+     * @phpstan-assert-if-true array<string, mixed> $payload
+     */
+    protected static function isCurrentDisplay(mixed $payload): bool
+    {
+        return is_array($payload)
+            && array_key_exists('icon', $payload)
+            && array_key_exists('image_url', $payload);
     }
 
     /**
